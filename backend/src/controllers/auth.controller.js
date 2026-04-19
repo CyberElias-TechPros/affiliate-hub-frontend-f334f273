@@ -21,11 +21,24 @@ exports.loginValidators = [
 ];
 
 exports.signup = asyncHandler(async (req, res) => {
-  const { name, email, password, country, whatsapp } = req.body;
+  const { name, email, password, country, whatsapp, referralCode } = req.body;
   const exists = await User.findOne({ email });
   if (exists) throw new ApiError(409, 'Email already registered');
 
-  const user = await User.create({ name, email, password, country, whatsapp });
+  const userData = { name, email, password, country, whatsapp };
+
+  if (referralCode) {
+    const Referral = require('../models/Referral');
+    const referrer = await User.findOne({ referralCode });
+    if (referrer) {
+      userData.referredBy = referrer._id;
+      const user = await User.create(userData);
+      await Referral.create({ referrer: referrer._id, referred: user._id, status: 'pending' });
+      return res.status(201).json(issue(user));
+    }
+  }
+
+  const user = await User.create(userData);
   res.status(201).json(issue(user));
 });
 
@@ -61,9 +74,10 @@ exports.me = asyncHandler(async (req, res) => {
 });
 
 exports.completeOnboarding = asyncHandler(async (req, res) => {
-  const { country, niche, whatsapp } = req.body;
+  const { country, niche, niches, whatsapp } = req.body;
   if (country) req.user.country = country;
   if (niche) req.user.niche = niche;
+  if (Array.isArray(niches)) req.user.niches = niches;
   if (whatsapp) req.user.whatsapp = whatsapp;
   req.user.onboardingComplete = true;
   await req.user.save();
