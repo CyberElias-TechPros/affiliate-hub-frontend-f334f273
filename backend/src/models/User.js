@@ -21,6 +21,9 @@ const userSchema = new mongoose.Schema(
     role: { type: String, enum: ['user', 'admin'], default: 'user' },
     onboardingComplete: { type: Boolean, default: false },
     provider: { type: String, enum: ['local', 'google', 'apple'], default: 'local' },
+    referralCode: { type: String, unique: true, sparse: true, index: true },
+    referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    niches: [{ type: String }],
   },
   { timestamps: true }
 );
