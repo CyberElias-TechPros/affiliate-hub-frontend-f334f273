@@ -2,6 +2,7 @@ const Transaction = require('../models/Transaction');
 const Withdrawal = require('../models/Withdrawal');
 const ApiError = require('../utils/ApiError');
 const asyncHandler = require('../utils/asyncHandler');
+const { notify, bumpAchievement } = require('../services/engagement.service');
 
 const FX_NGN_PER_USD = 1500;
 
@@ -22,12 +23,22 @@ async function calcBalance(userId) {
   return agg[0]?.balance || 0;
 }
 
+async function calcPending(userId) {
+  const agg = await Transaction.aggregate([
+    { $match: { user: userId, status: 'pending', direction: 'credit' } },
+    { $group: { _id: null, total: { $sum: '$amount' } } },
+  ]);
+  return agg[0]?.total || 0;
+}
+
 exports.balance = asyncHandler(async (req, res) => {
-  const ngn = await calcBalance(req.user._id);
+  const [ngn, pending] = await Promise.all([calcBalance(req.user._id), calcPending(req.user._id)]);
   res.json({
     ngnBalance: ngn,
     usdBalance: Math.round((ngn / FX_NGN_PER_USD) * 100) / 100,
+    pending,
     currency: 'NGN',
+    fxRate: FX_NGN_PER_USD,
   });
 });
 
@@ -68,6 +79,15 @@ exports.withdraw = asyncHandler(async (req, res) => {
     details,
     transaction: tx._id,
   });
+
+  await notify(req.user._id, {
+    type: 'withdrawal',
+    title: 'Withdrawal requested',
+    message: `₦${amount.toLocaleString()} via ${method} is pending review.`,
+    icon: '⏳',
+    link: '/wallet',
+  });
+  await bumpAchievement(req.user._id, 'first_payout');
 
   res.status(201).json({ withdrawal: w, transaction: tx });
 });
