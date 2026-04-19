@@ -1,189 +1,206 @@
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError, InternalAxiosRequestConfig, AxiosHeaders } from 'axios';
+import axios, {
+  AxiosInstance,
+  AxiosResponse,
+  AxiosError,
+  InternalAxiosRequestConfig,
+  AxiosHeaders,
+} from 'axios';
+import type {
+  User,
+  Product,
+  AffiliateLink,
+  Transaction,
+  Withdrawal,
+  BalanceResponse,
+  DashboardStats,
+  Notification,
+  Achievement,
+  BankDetails,
+  LeaderboardEntry,
+  ReferralStats,
+} from '@/types';
 
-// Define the API base URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api/v1';
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api/v1';
 
-// Create an Axios instance
+const TOKEN_KEY = 'affiliate_token';
+
+export const tokenStore = {
+  get: () => localStorage.getItem(TOKEN_KEY),
+  set: (t: string) => localStorage.setItem(TOKEN_KEY, t),
+  clear: () => localStorage.removeItem(TOKEN_KEY),
+};
+
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  timeout: 10000,
+  headers: { 'Content-Type': 'application/json' },
+  timeout: 15000,
 });
 
-// Request interceptor to add the authorization token
-api.interceptors.request.use(
-  (config: InternalAxiosRequestConfig<any>) => {
-    const token = localStorage.getItem('affiliate_token');
-    if (token) {
-      config.headers = config.headers || new AxiosHeaders();
-      config.headers.set('Authorization', `Bearer ${token}`);
-    }
-    return config;
-  },
-  (error: AxiosError) => {
-    return Promise.reject(error);
+api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  const token = tokenStore.get();
+  if (token) {
+    config.headers = config.headers || new AxiosHeaders();
+    config.headers.set('Authorization', `Bearer ${token}`);
   }
-);
+  return config;
+});
 
-// Response interceptor to handle errors
 api.interceptors.response.use(
-  (response: AxiosResponse) => {
-    return response;
-  },
+  (response: AxiosResponse) => response,
   (error: AxiosError) => {
-    if (error.response) {
-      // Handle specific error statuses
-      switch (error.response.status) {
-        case 401:
-          // Handle unauthorized access
-          localStorage.removeItem('affiliate_token');
-          window.location.href = '/auth';
-          break;
-        case 404:
-          // Handle not found
-          console.error('API endpoint not found');
-          break;
-        case 500:
-          // Handle server error
-          console.error('Server error');
-          break;
-        default:
-          console.error('API error:', error.response.data);
+    const status = error.response?.status;
+    if (status === 401 && typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      // Only redirect to /auth from authenticated pages, not from /auth itself.
+      if (
+        !path.startsWith('/auth') &&
+        !path.startsWith('/onboarding') &&
+        path !== '/'
+      ) {
+        tokenStore.clear();
+        window.location.href = '/auth';
       }
-    } else if (error.request) {
-      // Handle request errors
-      console.error('No response received:', error.request);
-    } else {
-      // Handle other errors
-      console.error('Error:', error.message);
     }
     return Promise.reject(error);
   }
 );
 
-// Define API endpoints
-export const API_ENDPOINTS = {
-  AUTH: {
-    LOGIN: '/auth/login',
-    SIGNUP: '/auth/signup',
-    SOCIAL_AUTH: '/auth/social-auth',
-    REFRESH_TOKEN: '/auth/refresh-token',
-  },
-  PRODUCTS: {
-    LIST: '/products',
-    DETAIL: '/products/{id}',
-    SEARCH: '/products/search',
-    CATEGORIES: '/products/categories',
-  },
-  WALLET: {
-    BALANCE: '/wallet/balance',
-    TRANSACTIONS: '/wallet/transactions',
-    WITHDRAW: '/wallet/withdraw',
-    WITHDRAW_METHODS: '/wallet/withdraw-methods',
-  },
-  STATS: {
-    DASHBOARD: '/stats/dashboard',
-    PERFORMANCE: '/stats/performance',
-    LEADERBOARD: '/stats/leaderboard',
-  },
-  PROFILE: {
-    GET: '/profile',
-    UPDATE: '/profile/update',
-    BANK_DETAILS: '/profile/bank-details',
-    SECURITY: '/profile/security',
-  },
-  AFFILIATE: {
-    LINKS: '/affiliate/links',
-    GENERATE_LINK: '/affiliate/generate-link',
-    ASSETS: '/affiliate/assets',
-  },
-};
+const unwrap = <T,>(p: Promise<AxiosResponse<T>>) => p.then((r) => r.data);
 
-// Define API functions
+// ---------- AUTH ----------
 export const AuthAPI = {
-  login: (email: string, password: string) => {
-    return api.post(API_ENDPOINTS.AUTH.LOGIN, { email, password });
-  },
-  signup: (name: string, email: string, password: string) => {
-    return api.post(API_ENDPOINTS.AUTH.SIGNUP, { name, email, password });
-  },
-  socialAuth: (provider: string, token: string) => {
-    return api.post(API_ENDPOINTS.AUTH.SOCIAL_AUTH, { provider, token });
-  },
-  refreshToken: (refreshToken: string) => {
-    return api.post(API_ENDPOINTS.AUTH.REFRESH_TOKEN, { refreshToken });
-  },
+  signup: (data: {
+    name: string;
+    email: string;
+    password: string;
+    country?: string;
+    whatsapp?: string;
+    referralCode?: string;
+  }) => unwrap<{ token: string; user: User }>(api.post('/auth/signup', data)),
+  login: (email: string, password: string) =>
+    unwrap<{ token: string; user: User }>(api.post('/auth/login', { email, password })),
+  socialAuth: (provider: 'google' | 'apple', email: string, name?: string) =>
+    unwrap<{ token: string; user: User }>(
+      api.post('/auth/social-auth', { provider, email, name })
+    ),
+  me: () => unwrap<{ user: User }>(api.get('/auth/me')),
+  completeOnboarding: (data: {
+    country?: string;
+    niche?: string;
+    niches?: string[];
+    whatsapp?: string;
+  }) => unwrap<{ user: User }>(api.post('/auth/onboarding', data)),
 };
 
+// ---------- PRODUCTS ----------
 export const ProductAPI = {
-  getProducts: (params: { category?: string; sort?: string; page?: number; limit?: number }) => {
-    return api.get(API_ENDPOINTS.PRODUCTS.LIST, { params });
-  },
-  getProductDetail: (id: string) => {
-    return api.get(API_ENDPOINTS.PRODUCTS.DETAIL.replace('{id}', id));
-  },
-  searchProducts: (query: string) => {
-    return api.get(API_ENDPOINTS.PRODUCTS.SEARCH, { params: { q: query } });
-  },
-  getCategories: () => {
-    return api.get(API_ENDPOINTS.PRODUCTS.CATEGORIES);
-  },
+  list: (params?: { category?: string; sort?: string; page?: number; limit?: number; q?: string }) =>
+    unwrap<{ items: Product[]; total: number; page: number; limit: number }>(
+      api.get('/products', { params })
+    ),
+  detail: (id: string) => unwrap<Product>(api.get(`/products/${id}`)),
+  search: (q: string) => unwrap<{ items: Product[]; total: number }>(api.get('/products/search', { params: { q } })),
+  categories: () => unwrap<string[]>(api.get('/products/categories')),
 };
 
-export const WalletAPI = {
-  getBalance: () => {
-    return api.get(API_ENDPOINTS.WALLET.BALANCE);
-  },
-  getTransactions: (params: { page?: number; limit?: number; status?: string }) => {
-    return api.get(API_ENDPOINTS.WALLET.TRANSACTIONS, { params });
-  },
-  withdraw: (amount: number, method: string, details: any) => {
-    return api.post(API_ENDPOINTS.WALLET.WITHDRAW, { amount, method, details });
-  },
-  getWithdrawMethods: () => {
-    return api.get(API_ENDPOINTS.WALLET.WITHDRAW_METHODS);
-  },
-};
-
-export const StatsAPI = {
-  getDashboardStats: () => {
-    return api.get(API_ENDPOINTS.STATS.DASHBOARD);
-  },
-  getPerformance: (params: { period?: string }) => {
-    return api.get(API_ENDPOINTS.STATS.PERFORMANCE, { params });
-  },
-  getLeaderboard: (params: { limit?: number }) => {
-    return api.get(API_ENDPOINTS.STATS.LEADERBOARD, { params });
-  },
-};
-
-export const ProfileAPI = {
-  getProfile: () => {
-    return api.get(API_ENDPOINTS.PROFILE.GET);
-  },
-  updateProfile: (data: any) => {
-    return api.put(API_ENDPOINTS.PROFILE.UPDATE, data);
-  },
-  updateBankDetails: (data: any) => {
-    return api.put(API_ENDPOINTS.PROFILE.BANK_DETAILS, data);
-  },
-  updateSecurity: (data: any) => {
-    return api.put(API_ENDPOINTS.PROFILE.SECURITY, data);
-  },
-};
-
+// ---------- AFFILIATE ----------
 export const AffiliateAPI = {
-  getLinks: () => {
-    return api.get(API_ENDPOINTS.AFFILIATE.LINKS);
-  },
-  generateLink: (productId: string) => {
-    return api.post(API_ENDPOINTS.AFFILIATE.GENERATE_LINK, { productId });
-  },
-  getAssets: (productId: string) => {
-    return api.get(API_ENDPOINTS.AFFILIATE.ASSETS, { params: { productId } });
-  },
+  list: () => unwrap<{ items: AffiliateLink[] }>(api.get('/affiliate/links')),
+  generate: (productId: string) =>
+    unwrap<{ link: AffiliateLink; product: Product }>(
+      api.post('/affiliate/generate-link', { productId })
+    ),
+  assets: (productId: string) =>
+    unwrap<{ images: string[]; swipeCopy: string }>(
+      api.get('/affiliate/assets', { params: { productId } })
+    ),
+  // Test helper
+  simulateConversion: (code: string) =>
+    unwrap<{ ok: boolean; earned: number }>(api.post(`/affiliate/r/${code}/convert`)),
+};
+
+// ---------- WALLET ----------
+export const WalletAPI = {
+  balance: () => unwrap<BalanceResponse>(api.get('/wallet/balance')),
+  transactions: (params?: { page?: number; limit?: number; status?: string }) =>
+    unwrap<{ items: Transaction[]; total: number; page: number; limit: number }>(
+      api.get('/wallet/transactions', { params })
+    ),
+  withdraw: (data: { amount: number; method: 'bank' | 'usdt' | 'paypal'; details: Record<string, any> }) =>
+    unwrap<{ withdrawal: Withdrawal; transaction: Transaction }>(api.post('/wallet/withdraw', data)),
+  methods: () =>
+    unwrap<Array<{ id: string; label: string; minAmount: number; fee: number }>>(
+      api.get('/wallet/withdraw-methods')
+    ),
+};
+
+// ---------- STATS ----------
+export const StatsAPI = {
+  dashboard: () => unwrap<DashboardStats>(api.get('/stats/dashboard')),
+  performance: (period: '7d' | '30d' | '90d' = '7d') =>
+    unwrap<{ period: string; points: Array<{ date: string; clicks: number; earnings: number; conversions: number }> }>(
+      api.get('/stats/performance', { params: { period } })
+    ),
+  leaderboard: (limit = 10) =>
+    unwrap<LeaderboardEntry[]>(api.get('/stats/leaderboard', { params: { limit } })),
+};
+
+// ---------- PROFILE ----------
+export const ProfileAPI = {
+  get: () => unwrap<{ user: User; bank: BankDetails | null }>(api.get('/profile')),
+  update: (data: Partial<User>) => unwrap<{ user: User }>(api.put('/profile/update', data)),
+  updateBank: (data: BankDetails) => unwrap<{ bank: BankDetails }>(api.put('/profile/bank-details', data)),
+  updateSecurity: (currentPassword: string, newPassword: string) =>
+    unwrap<{ message: string }>(api.put('/profile/security', { currentPassword, newPassword })),
+};
+
+// ---------- NOTIFICATIONS ----------
+export const NotificationAPI = {
+  list: (unreadOnly = false) =>
+    unwrap<{ items: Notification[]; unread: number }>(
+      api.get('/notifications', { params: { unreadOnly } })
+    ),
+  markRead: (id: string) => unwrap(api.put(`/notifications/${id}/read`)),
+  markAllRead: () => unwrap(api.put('/notifications/read-all')),
+  remove: (id: string) => unwrap(api.delete(`/notifications/${id}`)),
+};
+
+// ---------- ACHIEVEMENTS ----------
+export const AchievementAPI = {
+  list: () => unwrap<{ items: Achievement[] }>(api.get('/achievements')),
+  streak: () =>
+    unwrap<{ current: number; longest: number; lastActiveDate: string }>(
+      api.get('/achievements/streak')
+    ),
+};
+
+// ---------- REFERRALS ----------
+export const ReferralAPI = {
+  me: () => unwrap<ReferralStats>(api.get('/referrals/me')),
+};
+
+// ---------- ADMIN ----------
+export const AdminAPI = {
+  metrics: () =>
+    unwrap<{ users: number; products: number; totalEarnings: number; pendingWithdrawals: number }>(
+      api.get('/admin/metrics')
+    ),
+  listUsers: (params?: { page?: number; limit?: number; q?: string }) =>
+    unwrap<{ items: User[]; total: number; page: number }>(api.get('/admin/users', { params })),
+  updateUserRole: (id: string, role: 'user' | 'admin') =>
+    unwrap<{ user: User }>(api.put(`/admin/users/${id}/role`, { role })),
+  deleteUser: (id: string) => unwrap(api.delete(`/admin/users/${id}`)),
+
+  createProduct: (data: Partial<Product>) => unwrap<Product>(api.post('/admin/products', data)),
+  updateProduct: (id: string, data: Partial<Product>) =>
+    unwrap<Product>(api.put(`/admin/products/${id}`, data)),
+  deleteProduct: (id: string) => unwrap(api.delete(`/admin/products/${id}`)),
+
+  listWithdrawals: (status?: string) =>
+    unwrap<{ items: Withdrawal[] }>(api.get('/admin/withdrawals', { params: { status } })),
+  updateWithdrawal: (id: string, status: Withdrawal['status']) =>
+    unwrap<{ withdrawal: Withdrawal }>(api.put(`/admin/withdrawals/${id}`, { status })),
 };
 
 export default api;
