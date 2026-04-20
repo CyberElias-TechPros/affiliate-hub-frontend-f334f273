@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
-const DB_TYPE = process.env.DB_TYPE || 'mongodb'; // 'mongodb' or 'mysql'
+const DB_TYPE = process.env.DB_TYPE || 'mongodb'; // 'mongodb', 'mysql', or 'postgres'
+const ENABLE_SYNC = process.env.ENABLE_SYNC === 'true';
 
 // MongoDB connection
 async function connectMongoDB() {
@@ -15,21 +16,41 @@ async function connectMongoDB() {
   mongoose.connection.on('disconnected', () => console.warn('Mongo disconnected'));
 }
 
-// Import MySQL connection
+// MySQL connection
 const { connectMySQL } = require('./db-mysql');
+const { connectPostgres } = require('./db-postgres');
 
-// Main connect function - selects DB based on DB_TYPE
+// Sync service
+let syncService = null;
+async function initSync() {
+  if (!ENABLE_SYNC) return;
+  try {
+    syncService = require('../services/sync.service');
+    await syncService.initSyncService();
+    console.log('✅ Sync service initialized');
+  } catch (err) {
+    console.error('Sync service init failed:', err.message);
+  }
+}
+
+// Main connect function - connects to primary DB and optionally syncs to others
 async function connectDB() {
   if (DB_TYPE === 'mysql') {
     await connectMySQL();
-    // Load MySQL models
     require('../models-mysql');
+  } else if (DB_TYPE === 'postgres') {
+    await connectPostgres();
   } else {
     await connectMongoDB();
-    // Load MongoDB models
     require('../models');
   }
-  console.log(`✅ Database connected using: ${DB_TYPE}`);
+  
+  console.log(`✅ Primary database connected: ${DB_TYPE}`);
+  
+  // Initialize sync service for backup redundancy
+  if (ENABLE_SYNC) {
+    await initSync();
+  }
 }
 
 module.exports = connectDB;
