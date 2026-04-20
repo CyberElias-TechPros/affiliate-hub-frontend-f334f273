@@ -1,28 +1,50 @@
 import * as React from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Eye, ShoppingCart, Target, TrendingUp, Trophy } from "lucide-react";
 import { BottomNav } from "@/components/layout/BottomNav";
-
-const weeklyData = [
-  { day: "Mon", clicks: 120, sales: 8 },
-  { day: "Tue", clicks: 180, sales: 12 },
-  { day: "Wed", clicks: 150, sales: 9 },
-  { day: "Thu", clicks: 280, sales: 18 },
-  { day: "Fri", clicks: 220, sales: 14 },
-  { day: "Sat", clicks: 350, sales: 22 },
-  { day: "Sun", clicks: 190, sales: 11 },
-];
-
-const leaderboard = [
-  { rank: 1, name: "Emeka O.", earnings: 1250000, avatar: "EO" },
-  { rank: 2, name: "Amaka U.", earnings: 980000, avatar: "AU" },
-  { rank: 3, name: "John D.", earnings: 750000, avatar: "JD" },
-  { rank: 4, name: "You", earnings: 472500, avatar: "CN", isCurrentUser: true },
-  { rank: 5, name: "Sarah K.", earnings: 420000, avatar: "SK" },
-];
+import { StatsAPI } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 const StatsPage = () => {
-  const maxClicks = Math.max(...weeklyData.map((d) => d.clicks));
-  const maxSales = Math.max(...weeklyData.map((d) => d.sales));
+  const { user } = useAuth();
+
+  const { data: statsData, isLoading: statsLoading } = useQuery({
+    queryKey: ["dashboard-stats"],
+    queryFn: StatsAPI.dashboard,
+  });
+
+  const { data: performanceData, isLoading: perfLoading } = useQuery({
+    queryKey: ["performance", "7d"],
+    queryFn: () => StatsAPI.performance("7d"),
+  });
+
+  const { data: leaderboardData, isLoading: lbLoading } = useQuery({
+    queryKey: ["leaderboard"],
+    queryFn: () => StatsAPI.leaderboard(10),
+  });
+
+  const stats = statsData;
+  const performance = performanceData?.points ?? [];
+  const leaderboard = leaderboardData ?? [];
+
+  const chartData = performance.length > 0 
+    ? performance.map((p) => ({ 
+        day: new Date(p.date).toLocaleDateString("en", { weekday: "short" }), 
+        clicks: p.clicks, 
+        conversions: p.conversions 
+      }))
+    : [
+        { day: "Mon", clicks: 0, conversions: 0 },
+        { day: "Tue", clicks: 0, conversions: 0 },
+        { day: "Wed", clicks: 0, conversions: 0 },
+        { day: "Thu", clicks: 0, conversions: 0 },
+        { day: "Fri", clicks: 0, conversions: 0 },
+        { day: "Sat", clicks: 0, conversions: 0 },
+        { day: "Sun", clicks: 0, conversions: 0 },
+      ];
+
+  const maxClicks = Math.max(...chartData.map((d) => d.clicks), 1);
+  const maxSales = Math.max(...chartData.map((d) => d.conversions), 1);
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -42,18 +64,18 @@ const StatsPage = () => {
               </div>
               <span className="text-sm text-muted-foreground">Total Clicks</span>
             </div>
-            <p className="text-2xl font-bold text-foreground">12,847</p>
-            <p className="text-xs text-success font-medium">+18% vs last month</p>
+            <p className="text-2xl font-bold text-foreground">{stats?.totalClicks?.toLocaleString() ?? "0"}</p>
+            <p className="text-xs text-muted-foreground">All time</p>
           </div>
           <div className="bg-card rounded-xl p-4 shadow-card">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-8 h-8 rounded-lg bg-success/10 flex items-center justify-center">
                 <ShoppingCart className="h-4 w-4 text-success" />
               </div>
-              <span className="text-sm text-muted-foreground">Total Sales</span>
+              <span className="text-sm text-muted-foreground">Conversions</span>
             </div>
-            <p className="text-2xl font-bold text-foreground">456</p>
-            <p className="text-xs text-success font-medium">+12% vs last month</p>
+            <p className="text-2xl font-bold text-foreground">{stats?.totalConversions?.toLocaleString() ?? "0"}</p>
+            <p className="text-xs text-muted-foreground">All time</p>
           </div>
           <div className="bg-card rounded-xl p-4 shadow-card">
             <div className="flex items-center gap-2 mb-2">
@@ -62,18 +84,18 @@ const StatsPage = () => {
               </div>
               <span className="text-sm text-muted-foreground">Conv. Rate</span>
             </div>
-            <p className="text-2xl font-bold text-foreground">3.5%</p>
-            <p className="text-xs text-success font-medium">+0.8% vs last month</p>
+            <p className="text-2xl font-bold text-foreground">{stats?.conversionRate?.toFixed(1) ?? "0"}%</p>
+            <p className="text-xs text-muted-foreground">All time</p>
           </div>
           <div className="bg-card rounded-xl p-4 shadow-card">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-8 h-8 rounded-lg bg-warning/10 flex items-center justify-center">
                 <TrendingUp className="h-4 w-4 text-warning" />
               </div>
-              <span className="text-sm text-muted-foreground">Avg. Order</span>
+              <span className="text-sm text-muted-foreground">Earnings</span>
             </div>
-            <p className="text-2xl font-bold text-foreground">₦45,200</p>
-            <p className="text-xs text-success font-medium">+5% vs last month</p>
+            <p className="text-2xl font-bold text-foreground">₦{stats?.totalEarnings?.toLocaleString() ?? "0"}</p>
+            <p className="text-xs text-muted-foreground">All time</p>
           </div>
         </div>
       </div>
@@ -95,9 +117,9 @@ const StatsPage = () => {
           </div>
 
           <div className="flex items-end justify-between h-40 gap-2">
-            {weeklyData.map((data, index) => {
+            {chartData.map((data, index) => {
               const clickHeight = (data.clicks / maxClicks) * 100;
-              const saleHeight = (data.sales / maxSales) * 100;
+              const saleHeight = (data.conversions / maxSales) * 100;
               return (
                 <div key={data.day} className="flex-1 flex flex-col items-center gap-2">
                   <div className="w-full flex gap-0.5 items-end" style={{ height: "120px" }}>
@@ -125,36 +147,45 @@ const StatsPage = () => {
           <h2 className="font-semibold text-foreground">Top Affiliates</h2>
         </div>
         <div className="bg-card rounded-xl shadow-card overflow-hidden">
-          {leaderboard.map((user, index) => (
-            <div
-              key={user.rank}
-              className={`flex items-center gap-3 p-4 border-b border-border last:border-0 ${
-                user.isCurrentUser ? "bg-primary/5" : ""
-              }`}
-            >
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                user.rank === 1 ? "gradient-gold text-accent-foreground" :
-                user.rank === 2 ? "bg-muted-foreground/20 text-muted-foreground" :
-                user.rank === 3 ? "bg-warning/20 text-warning" :
-                "bg-muted text-muted-foreground"
-              }`}>
-                {user.rank}
-              </div>
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm ${
-                user.isCurrentUser ? "gradient-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-              }`}>
-                {user.avatar}
-              </div>
-              <div className="flex-1">
-                <p className={`font-medium ${user.isCurrentUser ? "text-primary" : "text-foreground"}`}>
-                  {user.name}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="font-bold text-foreground">₦{user.earnings.toLocaleString()}</p>
-              </div>
-            </div>
-          ))}
+          {lbLoading ? (
+            <div className="p-4 text-center text-muted-foreground">Loading...</div>
+          ) : leaderboard.length > 0 ? (
+            leaderboard.map((entry) => {
+              const isCurrentUser = entry.user?._id === user?._id;
+              return (
+                <div
+                  key={entry.rank}
+                  className={`flex items-center gap-3 p-4 border-b border-border last:border-0 ${
+                    isCurrentUser ? "bg-primary/5" : ""
+                  }`}
+                >
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                    entry.rank === 1 ? "gradient-gold text-accent-foreground" :
+                    entry.rank === 2 ? "bg-muted-foreground/20 text-muted-foreground" :
+                    entry.rank === 3 ? "bg-warning/20 text-warning" :
+                    "bg-muted text-muted-foreground"
+                  }`}>
+                    {entry.rank}
+                  </div>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm ${
+                    isCurrentUser ? "gradient-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                  }`}>
+                    {entry.user?.name?.charAt(0) ?? "?"}
+                  </div>
+                  <div className="flex-1">
+                    <p className={`font-medium ${isCurrentUser ? "text-primary" : "text-foreground"}`}>
+                      {entry.user?.name ?? "Anonymous"}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-foreground">₦{entry.earnings.toLocaleString()}</p>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="p-4 text-center text-muted-foreground">No leaderboard data yet</div>
+          )}
         </div>
       </div>
 

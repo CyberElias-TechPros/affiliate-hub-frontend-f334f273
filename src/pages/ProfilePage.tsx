@@ -1,5 +1,6 @@
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { 
   User, Building2, Shield, Moon, Bell, HelpCircle, 
   LogOut, ChevronRight, MessageCircle, FileText, ExternalLink 
@@ -7,15 +8,26 @@ import {
 import { MenuItem } from "@/components/ui/MenuItem";
 import { Switch } from "@/components/ui/switch";
 import { BottomNav } from "@/components/layout/BottomNav";
+import { ProfileAPI } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 const ProfilePage = () => {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [darkMode, setDarkMode] = React.useState(false);
   const [notifications, setNotifications] = React.useState(true);
 
+  const { data: profileData } = useQuery({
+    queryKey: ["profile"],
+    queryFn: ProfileAPI.get,
+    enabled: !!user,
+  });
+
   const handleLogout = () => {
-    navigate("/auth");
+    logout();
   };
+
+  const userInitials = user?.name?.split(" ").map((n) => n[0]).join("") ?? "U";
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -23,14 +35,14 @@ const ProfilePage = () => {
       <div className="px-4 pt-6 pb-8 gradient-hero">
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-full gradient-primary flex items-center justify-center text-primary-foreground text-xl font-bold shadow-glow">
-            CN
+            {userInitials}
           </div>
           <div className="flex-1">
-            <h1 className="text-xl font-bold font-display text-foreground">Chinedu Nwankwo</h1>
-            <p className="text-muted-foreground">chinedu@email.com</p>
+            <h1 className="text-xl font-bold font-display text-foreground">{user?.name ?? "User"}</h1>
+            <p className="text-muted-foreground">{user?.email ?? ""}</p>
             <div className="flex items-center gap-2 mt-1">
               <span className="px-2 py-0.5 rounded-full bg-success/10 text-success text-xs font-medium">
-                Pro Affiliate
+                {user?.role === 'admin' ? 'Admin' : 'Affiliate'}
               </span>
             </div>
           </div>

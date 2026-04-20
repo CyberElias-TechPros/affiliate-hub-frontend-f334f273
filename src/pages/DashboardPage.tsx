@@ -1,50 +1,63 @@
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { TrendingUp, Eye, ShoppingCart, Target, ChevronRight, Zap } from "lucide-react";
 import { BalanceCard } from "@/components/ui/BalanceCard";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { ContentAd, StickyFooterAd, NativeAd } from "@/components/common/AdBanner";
 import { useAdManager } from "@/contexts/AdManagerContext";
-
-const statsCards = [
-  { label: "Total Clicks", value: "2,847", change: "+12%", icon: Eye, color: "primary" },
-  { label: "Conversions", value: "156", change: "+8%", icon: ShoppingCart, color: "success" },
-  { label: "Conv. Rate", value: "5.4%", change: "+2.1%", icon: Target, color: "accent" },
-];
-
-const topProducts = [
-  { id: "1", name: "Forex Trading Course", sales: 45, earnings: 202500 },
-  { id: "2", name: "Fitness Watch Pro", sales: 32, earnings: 144000 },
-  { id: "3", name: "Business Masterclass", sales: 28, earnings: 126000 },
-];
-
-const topAffiliates = [
-  { name: "Adebayo T.", earnings: 450000, rank: 1 },
-  { name: "Ngozi O.", earnings: 380000, rank: 2 },
-  { name: "Chinedu M.", earnings: 320000, rank: 3 },
-];
-
-const weeklyData = [
-  { day: "Mon", clicks: 120 },
-  { day: "Tue", clicks: 180 },
-  { day: "Wed", clicks: 150 },
-  { day: "Thu", clicks: 280 },
-  { day: "Fri", clicks: 220 },
-  { day: "Sat", clicks: 350 },
-  { day: "Sun", clicks: 190 },
-];
+import { useAuth } from "@/contexts/AuthContext";
+import { WalletAPI, StatsAPI } from "@/lib/api";
 
 const DashboardPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { currentVariant, showInterstitial } = useAdManager();
-  const maxClicks = Math.max(...weeklyData.map((d) => d.clicks));
 
-  // Trigger app open interstitial (A/B tested)
+  const { data: balanceData } = useQuery({
+    queryKey: ["balance"],
+    queryFn: WalletAPI.balance,
+  });
+
+  const { data: statsData } = useQuery({
+    queryKey: ["dashboard-stats"],
+    queryFn: StatsAPI.dashboard,
+  });
+
+  const { data: leaderboardData } = useQuery({
+    queryKey: ["leaderboard"],
+    queryFn: () => StatsAPI.leaderboard(3),
+  });
+
+  const { data: performanceData } = useQuery({
+    queryKey: ["performance", "7d"],
+    queryFn: () => StatsAPI.performance("7d"),
+  });
+
   React.useEffect(() => {
     if (currentVariant === 'A') {
       showInterstitial('app_open');
     }
   }, [currentVariant, showInterstitial]);
+
+  const balance = balanceData?.ngnBalance ?? 0;
+  const stats = statsData;
+  const leaderboard = leaderboardData ?? [];
+  const performance = performanceData?.points ?? [];
+  
+  const weeklyData = performance.length > 0 
+    ? performance.map((p) => ({ day: new Date(p.date).toLocaleDateString("en", { weekday: "short" }), clicks: p.clicks }))
+    : [
+        { day: "Mon", clicks: 0 }, { day: "Tue", clicks: 0 }, { day: "Wed", clicks: 0 },
+        { day: "Thu", clicks: 0 }, { day: "Fri", clicks: 0 }, { day: "Sat", clicks: 0 }, { day: "Sun", clicks: 0 },
+      ];
+  const maxClicks = Math.max(...weeklyData.map((d) => d.clicks), 1);
+
+  const statsCards = [
+    { label: "Total Clicks", value: stats?.totalClicks?.toLocaleString() ?? "0", change: "+0%", icon: Eye, color: "primary" },
+    { label: "Conversions", value: stats?.totalConversions?.toLocaleString() ?? "0", change: "+0%", icon: ShoppingCart, color: "success" },
+    { label: "Conv. Rate", value: `${stats?.conversionRate?.toFixed(1) ?? 0}%`, change: "+0%", icon: Target, color: "accent" },
+  ];
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -53,23 +66,20 @@ const DashboardPage = () => {
         <div className="flex items-center justify-between mb-6">
           <div>
             <p className="text-muted-foreground text-sm">Welcome back,</p>
-            <h1 className="text-xl font-bold font-display text-foreground">Chinedu 👋</h1>
+            <h1 className="text-xl font-bold font-display text-foreground">{user?.name?.split(" ")[0] ?? "User"} 👋</h1>
           </div>
-          <button className="relative p-2 rounded-full bg-card shadow-sm">
+          <button className="relative p-2 rounded-full bg-card shadow-sm" onClick={() => navigate("/notifications")}>
             <Zap className="h-5 w-5 text-accent" />
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full flex items-center justify-center">
-              3
-            </span>
           </button>
         </div>
 
         {/* Balance Cards */}
         <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
           <div className="min-w-[280px]">
-            <BalanceCard currency="NGN" balance={472500} trend={12} isActive />
+            <BalanceCard currency="NGN" balance={balance} trend={0} isActive />
           </div>
           <div className="min-w-[280px]">
-            <BalanceCard currency="USD" balance={315} trend={8} />
+            <BalanceCard currency="USD" balance={(balance / (balanceData?.fxRate ?? 1)).toFixed(2)} trend={0} />
           </div>
         </div>
       </div>
@@ -128,33 +138,44 @@ const DashboardPage = () => {
         </div>
       </div>
 
-      {/* Top Products */}
+      {/* Top Products - using recent transactions for demo */}
       <div className="px-4 py-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-semibold text-foreground">Top Performers</h2>
-          <button className="text-sm text-primary font-medium flex items-center">
+          <button className="text-sm text-primary font-medium flex items-center" onClick={() => navigate("/marketplace")}>
             View all <ChevronRight className="h-4 w-4" />
           </button>
         </div>
         <div className="space-y-3">
-          {topProducts.map((product, index) => (
-            <div
-              key={product.id}
-              className="flex items-center gap-3 bg-card rounded-xl p-3 shadow-card animate-slide-in-right"
-              style={{ animationDelay: `${index * 100}ms` }}
-            >
-              <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center text-primary-foreground font-bold">
-                #{index + 1}
+          {(statsData?.recentTransactions?.slice(0, 3) ?? []).length > 0 ? (
+            statsData?.recentTransactions?.slice(0, 3).map((tx, index) => (
+              <div
+                key={tx._id}
+                className="flex items-center gap-3 bg-card rounded-xl p-3 shadow-card animate-slide-in-right"
+                style={{ animationDelay: `${index * 100}ms` }}
+              >
+                <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center text-primary-foreground font-bold">
+                  #{index + 1}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-foreground truncate">{tx.description}</p>
+                  <p className="text-sm text-muted-foreground">{tx.type}</p>
+                </div>
+                <div className="text-right">
+                  <p className={`font-bold ${tx.direction === 'credit' ? 'text-success' : 'text-destructive'}`}>
+                    {tx.direction === 'credit' ? '+' : '-'}₦{tx.amount.toLocaleString()}
+                  </p>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-foreground truncate">{product.name}</p>
-                <p className="text-sm text-muted-foreground">{product.sales} sales</p>
-              </div>
-              <div className="text-right">
-                <p className="font-bold text-success">₦{product.earnings.toLocaleString()}</p>
-              </div>
+            ))
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>No transactions yet</p>
+              <button onClick={() => navigate("/marketplace")} className="text-primary hover:underline text-sm">
+                Start promoting products
+              </button>
             </div>
-          ))}
+          )}
         </div>
       </div>
 
@@ -162,32 +183,33 @@ const DashboardPage = () => {
       <div className="px-4 py-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-semibold text-foreground">Top Affiliates</h2>
-          <button className="text-sm text-primary font-medium flex items-center">
+          <button className="text-sm text-primary font-medium flex items-center" onClick={() => navigate("/leaderboard")}>
             View all <ChevronRight className="h-4 w-4" />
           </button>
         </div>
         <div className="bg-card rounded-xl p-4 shadow-card">
           <div className="space-y-3">
-            {topAffiliates.map((affiliate, index) => (
-              <div
-                key={affiliate.rank}
-                className="flex items-center gap-3"
-              >
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                  affiliate.rank === 1 ? "gradient-gold text-accent-foreground" :
-                  affiliate.rank === 2 ? "bg-muted text-muted-foreground" :
-                  "bg-muted text-muted-foreground"
-                }`}>
-                  {affiliate.rank}
+            {leaderboard.length > 0 ? (
+              leaderboard.map((entry) => (
+                <div key={entry.rank} className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                    entry.rank === 1 ? "gradient-gold text-accent-foreground" :
+                    entry.rank === 2 ? "bg-muted text-muted-foreground" :
+                    "bg-muted text-muted-foreground"
+                  }`}>
+                    {entry.rank}
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-foreground">{entry.user?.name ?? "Anonymous"}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-success">₦{entry.earnings.toLocaleString()}</p>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <p className="font-medium text-foreground">{affiliate.name}</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-bold text-success">₦{affiliate.earnings.toLocaleString()}</p>
-                </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-center text-muted-foreground py-4">No leaderboard data yet</p>
+            )}
           </div>
         </div>
       </div>

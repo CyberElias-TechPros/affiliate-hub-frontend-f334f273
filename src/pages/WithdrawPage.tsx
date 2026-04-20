@@ -1,26 +1,46 @@
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Building2, Wallet, DollarSign, Check, AlertCircle } from "lucide-react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { ArrowLeft, Building2, Wallet, DollarSign, Check, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CustomInput } from "@/components/ui/CustomInput";
 import { toast } from "sonner";
-
-const withdrawMethods = [
-  { id: "bank", label: "Bank Transfer", icon: Building2, fee: "Free", time: "1-2 hours" },
-  { id: "usdt", label: "USDT (TRC20)", icon: DollarSign, fee: "1%", time: "Instant" },
-  { id: "paypal", label: "PayPal", icon: Wallet, fee: "2%", time: "Instant" },
-];
+import { WalletAPI } from "@/lib/api";
 
 const WithdrawPage = () => {
   const navigate = useNavigate();
   const [amount, setAmount] = React.useState("");
-  const [method, setMethod] = React.useState("bank");
+  const [method, setMethod] = React.useState<"bank" | "usdt" | "paypal">("bank");
   const [step, setStep] = React.useState(1);
-  const [isLoading, setIsLoading] = React.useState(false);
+  const [details, setDetails] = React.useState<Record<string, string>>({});
 
-  const availableBalance = 472500;
+  const { data: balanceData, isLoading: balanceLoading } = useQuery({
+    queryKey: ["balance"],
+    queryFn: WalletAPI.balance,
+  });
+
+  const { data: methodsData, isLoading: methodsLoading } = useQuery({
+    queryKey: ["withdraw-methods"],
+    queryFn: WalletAPI.methods,
+  });
+
+  const withdrawMutation = useMutation({
+    mutationFn: WalletAPI.withdraw,
+    onSuccess: () => {
+      toast.success("Withdrawal request submitted!");
+      navigate("/wallet");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Withdrawal failed");
+    },
+  });
+
+  const availableBalance = balanceData?.ngnBalance ?? 0;
   const amountNum = parseFloat(amount.replace(/,/g, "")) || 0;
-  const isValidAmount = amountNum >= 5000 && amountNum <= availableBalance;
+  const minAmount = 5000;
+  const isValidAmount = amountNum >= minAmount && amountNum <= availableBalance;
+
+  const selectedMethod = methodsData?.find((m) => m.id === method);
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/[^0-9]/g, "");
@@ -31,13 +51,19 @@ const WithdrawPage = () => {
     }
   };
 
-  const handleWithdraw = async () => {
-    setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    setIsLoading(false);
-    toast.success("Withdrawal request submitted!");
-    navigate("/wallet");
+  const handleWithdraw = () => {
+    withdrawMutation.mutate({
+      amount: amountNum,
+      method,
+      details,
+    });
   };
+
+  const withdrawMethods = methodsData ?? [
+    { id: "bank", label: "Bank Transfer", icon: Building2, minAmount: 5000, fee: 0 },
+    { id: "usdt", label: "USDT (TRC20)", icon: DollarSign, minAmount: 100, fee: 1 },
+    { id: "paypal", label: "PayPal", icon: Wallet, minAmount: 100, fee: 2 },
+  ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -74,7 +100,11 @@ const WithdrawPage = () => {
                 Enter amount
               </h2>
               <p className="text-muted-foreground">
-                Available: <span className="text-foreground font-medium">₦{availableBalance.toLocaleString()}</span>
+                {balanceLoading ? (
+                  <span className="animate-pulse bg-muted h-4 w-24 inline-block" />
+                ) : (
+                  <>Available: <span className="text-foreground font-medium">₦{availableBalance.toLocaleString()}</span></>
+                )}
               </p>
             </div>
 
@@ -92,7 +122,7 @@ const WithdrawPage = () => {
               {amount && !isValidAmount && (
                 <p className="text-sm text-destructive mt-2 flex items-center gap-1">
                   <AlertCircle className="h-4 w-4" />
-                  {amountNum < 5000 ? "Minimum withdrawal is ₦5,000" : "Insufficient balance"}
+                  {amountNum < minAmount ? `Minimum withdrawal is ₦${minAmount.toLocaleString()}` : "Insufficient balance"}
                 </p>
               )}
             </div>
@@ -203,7 +233,9 @@ const WithdrawPage = () => {
               </div>
               <div className="flex justify-between items-center py-2 border-b border-border">
                 <span className="text-muted-foreground">Fee</span>
-                <span className="font-medium text-success">Free</span>
+                <span className="font-medium text-success">
+                  {selectedMethod?.fee ? `${selectedMethod.fee}%` : "Free"}
+                </span>
               </div>
               <div className="flex justify-between items-center py-2">
                 <span className="text-muted-foreground">You'll receive</span>
@@ -220,12 +252,12 @@ const WithdrawPage = () => {
 
             <Button
               onClick={handleWithdraw}
-              disabled={isLoading}
+              disabled={withdrawMutation.isPending}
               className="w-full h-14 gradient-primary text-primary-foreground font-semibold rounded-xl shadow-glow"
             >
-              {isLoading ? (
+              {withdrawMutation.isPending ? (
                 <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                  <Loader2 className="h-5 w-5 animate-spin" />
                   Processing...
                 </div>
               ) : (
