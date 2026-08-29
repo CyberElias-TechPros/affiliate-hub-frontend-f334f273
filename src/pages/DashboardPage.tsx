@@ -126,10 +126,10 @@ const DashboardPage = () => {
               const height = (data.clicks / maxClicks) * 100;
               return (
                 <div key={data.day} className="flex-1 flex flex-col items-center gap-2">
-                  <div className="w-full relative" style={{ height: `${height}%` }}>
+                  <div className="w-full h-24 relative rounded-t-md overflow-hidden">
                     <div
-                      className="w-full h-full rounded-t-md gradient-primary animate-fade-up"
-                      style={{ animationDelay: `${index * 50}ms` }}
+                      className="absolute bottom-0 left-0 right-0 rounded-t-md gradient-primary animate-fade-up"
+                      style={{ height: `${height}%`, animationDelay: `${index * 50}ms` }}
                     />
                   </div>
                   <span className="text-[10px] text-muted-foreground">{data.day}</span>
