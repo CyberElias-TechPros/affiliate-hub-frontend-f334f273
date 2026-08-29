@@ -97,6 +97,12 @@ const AuthPage = () => {
   const handleSocial = (provider: "google" | "apple") => {
     // Full-page redirect to the OAuth provider (Google/Apple) via the API.
     // The callback returns here with ?token=... which we exchange for a session.
+    if (apiBaseUrl.startsWith("/")) {
+      // In production VITE_API_BASE_URL must point at the deployed Worker;
+      // a relative base means OAuth can't reach the API.
+      toast.error("Social sign-in isn't configured for this environment. Please sign in with email.");
+      return;
+    }
     const current = new URLSearchParams(searchParams);
     current.delete("token");
     current.delete("redirect");

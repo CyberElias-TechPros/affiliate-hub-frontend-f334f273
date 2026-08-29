@@ -37,7 +37,6 @@ referrals.get('/me', authMiddleware, async (c) => {
     },
   });
 });
-
 referrals.post('/apply', authMiddleware, zValidator('json', z.object({ code: z.string().min(1).max(32) })), async (c) => {
   const { code } = c.req.valid('json');
   const user = c.get('user');

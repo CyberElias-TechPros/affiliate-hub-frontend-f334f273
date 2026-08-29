@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Env, UserRow } from '../env';
-import { get, run, newId, newCode, now, toUser } from '../helpers/db';
+import { get, run, newId, uniqueCode, now, toUser } from '../helpers/db';
 import { signToken, ApiError } from '../helpers/auth';
 import { frontendBaseUrl, apiBaseUrl } from '../helpers/baseUrl';
 import { verifyGoogleIdToken, verifyAppleIdToken, exchangeCodeForToken, type OIDCPayload } from '../helpers/oidc';
@@ -41,7 +41,7 @@ async function upsertSocialUser(env: Env, provider: 'google' | 'apple', payload:
       env.DB,
       `INSERT INTO users (_id, name, email, password_hash, phone, whatsapp, country, niche, niches, avatar_url, role, onboarding_complete, provider, referral_code, referred_by, created_at, updated_at)
        VALUES (?, ?, ?, '', '', '', 'NG', '', '[]', '', 'user', 0, ?, ?, NULL, ?, ?)`,
-      _id, payload.name || email.split('@')[0], email, provider, newCode(8), ts, ts
+      _id, payload.name || email.split('@')[0], email, provider, await uniqueCode(env.DB, 'users', 'referral_code', 8), ts, ts
     );
     await notify(env.DB, _id, {
       type: 'system',
@@ -52,7 +52,7 @@ async function upsertSocialUser(env: Env, provider: 'google' | 'apple', payload:
     });
     user = (await get<UserRow>(env.DB, 'SELECT * FROM users WHERE _id = ?', _id))!;
   } else if (!user.referral_code) {
-    await run(env.DB, 'UPDATE users SET referral_code = ?, updated_at = ? WHERE _id = ?', newCode(8), now(), user._id);
+    await run(env.DB, 'UPDATE users SET referral_code = ?, updated_at = ? WHERE _id = ?', await uniqueCode(env.DB, 'users', 'referral_code', 8), now(), user._id);
   }
   return user;
 }

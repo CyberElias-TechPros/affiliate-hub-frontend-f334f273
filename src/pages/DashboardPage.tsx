@@ -37,7 +37,10 @@ const DashboardPage = () => {
   });
 
   React.useEffect(() => {
-    if (currentVariant === 'A') {
+    // Show the app-open interstitial at most once per browser session so it
+    // never interrupts every single dashboard visit.
+    if (currentVariant === 'A' && !sessionStorage.getItem('ah_interstitial_shown')) {
+      sessionStorage.setItem('ah_interstitial_shown', '1');
       showInterstitial('app_open');
     }
   }, [currentVariant, showInterstitial]);
