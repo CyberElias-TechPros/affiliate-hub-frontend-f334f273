@@ -4,7 +4,8 @@ import { cn } from "@/lib/utils";
 
 interface BalanceCardProps {
   currency: "NGN" | "USD";
-  balance: number;
+  /** Numeric amount, or a pre-formatted string (e.g. "1,234.56"). */
+  balance: number | string;
   trend?: number;
   isActive?: boolean;
   className?: string;
@@ -14,9 +15,10 @@ const BalanceCard = React.forwardRef<HTMLDivElement, BalanceCardProps>(
   ({ currency, balance, trend, isActive = false, className }, ref) => {
     const [hidden, setHidden] = React.useState(false);
 
-    const formatBalance = (amount: number) => {
+    const formatBalance = (amount: number | string) => {
       if (hidden) return "••••••";
       const prefix = currency === "NGN" ? "₦" : "$";
+      if (typeof amount === "string") return `${prefix}${amount}`;
       return `${prefix}${amount.toLocaleString(undefined, { 
         minimumFractionDigits: 2, 
         maximumFractionDigits: 2 

@@ -1,28 +1,44 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="light">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- TODO: Set the document title to the name of your application -->
-    <title>Lovable App</title>
-    <meta name="description" content="Lovable Generated Project" />
-    <meta name="author" content="Lovable" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Affiliate Hub — Earn Money Promoting Products</title>
+    <meta name="description" content="Join Affiliate Hub and earn up to 60% commission promoting top products. Generate affiliate links, track clicks, and get paid via bank transfer, USDT or PayPal." />
+    <meta name="author" content="Affiliate Hub" />
+    <meta name="theme-color" content="#0f8a5f" />
 
-    <!-- TODO: Update og:title to match your application name -->
-    <meta property="og:title" content="Lovable App" />
-    <meta property="og:description" content="Lovable Generated Project" />
+    <!-- Open Graph -->
+    <meta property="og:title" content="Affiliate Hub — Earn Money Promoting Products" />
+    <meta property="og:description" content="Generate affiliate links, track clicks, and withdraw to bank, USDT or PayPal." />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
-
+    <meta property="og:site_name" content="Affiliate Hub" />
+    <meta property="og:image" content="/placeholder.svg" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@Lovable" />
-    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <meta name="twitter:title" content="Affiliate Hub — Earn Money Promoting Products" />
+    <meta name="twitter:description" content="Generate affiliate links, track clicks, and withdraw to bank, USDT or PayPal." />
+    <meta name="twitter:image" content="/placeholder.svg" />
 
-    <!-- Google AdSense -->
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/favicon.ico" />
+
+    <!-- Google AdSense (only loads when the site is served) -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9117572925263537"
          crossorigin="anonymous"></script>
     <script>
       window.adsbygoogle = window.adsbygoogle || [];
+    </script>
+    <script>
+      // Apply persisted theme before first paint to avoid a flash.
+      (function () {
+        try {
+          var theme = localStorage.getItem('ah_theme');
+          if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.classList.remove('light');
+          }
+        } catch (e) {}
+      })();
     </script>
   </head>
 

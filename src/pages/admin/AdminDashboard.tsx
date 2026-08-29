@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Users, Package, DollarSign, Loader2, ArrowUpRight } from "lucide-react";
+import { Users, Package, DollarSign, Loader2, ArrowUpRight, LifeBuoy } from "lucide-react";
 import { AdminAPI } from "@/lib/api";
 
 const AdminDashboard = () => {
@@ -22,32 +22,39 @@ const AdminDashboard = () => {
   }
 
   const statCards = [
-    { 
-      label: "Total Users", 
-      value: metrics?.users ?? 0, 
-      icon: Users, 
+    {
+      label: "Total Users",
+      value: metrics?.users ?? 0,
+      icon: Users,
       color: "text-primary",
       onClick: () => navigate("/admin/users")
     },
-    { 
-      label: "Active Products", 
-      value: metrics?.products ?? 0, 
-      icon: Package, 
+    {
+      label: "Active Products",
+      value: metrics?.products ?? 0,
+      icon: Package,
       color: "text-success",
       onClick: () => navigate("/admin/products")
     },
-    { 
-      label: "Total Earnings", 
-      value: `₦${(metrics?.totalEarnings ?? 0).toLocaleString()}`, 
-      icon: DollarSign, 
+    {
+      label: "Total Earnings",
+      value: `₦${(metrics?.totalEarnings ?? 0).toLocaleString()}`,
+      icon: DollarSign,
       color: "text-accent"
     },
-    { 
-      label: "Pending Withdrawals", 
-      value: metrics?.pendingWithdrawals ?? 0, 
-      icon: ArrowUpRight, 
+    {
+      label: "Pending Withdrawals",
+      value: metrics?.pendingWithdrawals ?? 0,
+      icon: ArrowUpRight,
       color: "text-warning",
       onClick: () => navigate("/admin/withdrawals")
+    },
+    {
+      label: "Open Support Tickets",
+      value: metrics?.openTickets ?? 0,
+      icon: LifeBuoy,
+      color: "text-primary",
+      onClick: () => navigate("/admin/tickets")
     },
   ];
 

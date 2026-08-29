@@ -4,7 +4,7 @@ import { ArrowRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CustomInput } from "@/components/ui/CustomInput";
 import { CountryDropdown } from "@/components/ui/CountryDropdown";
-import { AuthAPI } from "@/lib/api";
+import { AuthAPI, getErrorMessage } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
@@ -44,8 +44,8 @@ const OnboardingPage = () => {
       setUser(user);
       toast.success("You're all set!");
       navigate("/dashboard");
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || "Could not save preferences");
+    } catch (err) {
+      toast.error(getErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }

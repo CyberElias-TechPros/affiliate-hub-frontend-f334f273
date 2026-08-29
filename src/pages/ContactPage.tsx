@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { CustomInput } from "@/components/ui/CustomInput";
 import { toast } from "sonner";
 import { ContentAd } from "@/components/common/AdBanner";
+import { SupportAPI, getErrorMessage } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 const contactInfo = [
   {
@@ -27,7 +29,10 @@ const contactInfo = [
   },
 ];
 
+const SUPPORT_EMAIL = "support@affiliatehub.ng";
+
 const ContactPage = () => {
+  const { isAuthenticated } = useAuth();
   const [formData, setFormData] = React.useState({
     name: "",
     email: "",
@@ -38,11 +43,32 @@ const ContactPage = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const { name, email, subject, message } = formData;
+    if (!name.trim() || !email.trim() || !message.trim()) {
+      toast.error("Please fill in your name, email and message.");
+      return;
+    }
     setIsSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsSubmitting(false);
-    toast.success("Message sent! We'll get back to you soon.");
-    setFormData({ name: "", email: "", subject: "", message: "" });
+    try {
+      if (isAuthenticated) {
+        // Signed-in users: file a real support ticket so it reaches the admin inbox.
+        await SupportAPI.createTicket({
+          subject: subject.trim() || `Contact form: ${name.trim()}`,
+          message: `From: ${name.trim()} <${email.trim()}>\n\n${message.trim()}`,
+        });
+      } else {
+        // Visitors: open the visitor's mail client with the message pre-filled.
+        const body = encodeURIComponent(`${message.trim()}\n\n— ${name.trim()} (${email.trim()})`);
+        const mailto = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject.trim() || `Contact form: ${name.trim()}`)}&body=${body}`;
+        window.location.href = mailto;
+      }
+      toast.success("Message sent! We'll get back to you soon.");
+      setFormData({ name: "", email: "", subject: "", message: "" });
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -88,18 +114,37 @@ const ContactPage = () => {
             <div>
               <h2 className="text-2xl font-bold font-display text-foreground mb-6">Contact Information</h2>
               <div className="space-y-6 mb-8">
-                {contactInfo.map((info) => (
-                  <div key={info.title} className="flex gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <info.icon className="h-6 w-6 text-primary" />
+                {contactInfo.map((info) => {
+                  const isEmail = info.title === "Email Us";
+                  const isPhone = info.title === "WhatsApp";
+                  return (
+                    <div key={info.title} className="flex gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <info.icon className="h-6 w-6 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-foreground">{info.title}</h3>
+                        {isEmail ? (
+                          <a href={`mailto:${info.value}`} className="text-foreground hover:text-primary transition-colors">
+                            {info.value}
+                          </a>
+                        ) : isPhone ? (
+                          <a
+                            href="https://wa.me/2348012345678"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-foreground hover:text-primary transition-colors"
+                          >
+                            {info.value}
+                          </a>
+                        ) : (
+                          <p className="text-foreground">{info.value}</p>
+                        )}
+                        <p className="text-sm text-muted-foreground">{info.description}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-foreground">{info.title}</h3>
-                      <p className="text-foreground">{info.value}</p>
-                      <p className="text-sm text-muted-foreground">{info.description}</p>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Quick WhatsApp */}

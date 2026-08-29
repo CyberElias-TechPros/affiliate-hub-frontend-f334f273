@@ -1,9 +1,10 @@
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { TrendingUp, Eye, ShoppingCart, Target, ChevronRight, Zap } from "lucide-react";
+import { TrendingUp, Eye, ShoppingCart, Target, ChevronRight } from "lucide-react";
 import { BalanceCard } from "@/components/ui/BalanceCard";
 import { BottomNav } from "@/components/layout/BottomNav";
+import { NotificationBell } from "@/components/engagement/NotificationBell";
 import { ContentAd, StickyFooterAd, NativeAd } from "@/components/common/AdBanner";
 import { useAdManager } from "@/contexts/AdManagerContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,6 +18,7 @@ const DashboardPage = () => {
   const { data: balanceData } = useQuery({
     queryKey: ["balance"],
     queryFn: WalletAPI.balance,
+    refetchInterval: 60 * 1000,
   });
 
   const { data: statsData } = useQuery({
@@ -54,13 +56,13 @@ const DashboardPage = () => {
   const maxClicks = Math.max(...weeklyData.map((d) => d.clicks), 1);
 
   const statsCards = [
-    { label: "Total Clicks", value: stats?.totalClicks?.toLocaleString() ?? "0", change: "+0%", icon: Eye, color: "primary" },
-    { label: "Conversions", value: stats?.totalConversions?.toLocaleString() ?? "0", change: "+0%", icon: ShoppingCart, color: "success" },
-    { label: "Conv. Rate", value: `${stats?.conversionRate?.toFixed(1) ?? 0}%`, change: "+0%", icon: Target, color: "accent" },
+    { label: "Total Clicks", value: stats?.totalClicks?.toLocaleString() ?? "0", icon: Eye, color: "primary" },
+    { label: "Conversions", value: stats?.totalConversions?.toLocaleString() ?? "0", icon: ShoppingCart, color: "success" },
+    { label: "Conv. Rate", value: `${stats?.conversionRate?.toFixed(1) ?? 0}%`, icon: Target, color: "accent" },
   ];
 
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div className="min-h-screen bg-background pb-44">
       {/* Header */}
       <div className="px-4 pt-6 pb-4 gradient-hero">
         <div className="flex items-center justify-between mb-6">
@@ -68,18 +70,16 @@ const DashboardPage = () => {
             <p className="text-muted-foreground text-sm">Welcome back,</p>
             <h1 className="text-xl font-bold font-display text-foreground">{user?.name?.split(" ")[0] ?? "User"} 👋</h1>
           </div>
-          <button className="relative p-2 rounded-full bg-card shadow-sm" onClick={() => navigate("/notifications")}>
-            <Zap className="h-5 w-5 text-accent" />
-          </button>
+          <NotificationBell />
         </div>
 
         {/* Balance Cards */}
         <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
           <div className="min-w-[280px]">
-            <BalanceCard currency="NGN" balance={balance} trend={0} isActive />
+            <BalanceCard currency="NGN" balance={balance} isActive />
           </div>
           <div className="min-w-[280px]">
-            <BalanceCard currency="USD" balance={(balance / (balanceData?.fxRate ?? 1)).toFixed(2)} trend={0} />
+            <BalanceCard currency="USD" balance={balanceData?.usdBalance ?? 0} />
           </div>
         </div>
       </div>
@@ -101,7 +101,6 @@ const DashboardPage = () => {
               </div>
               <p className="text-lg font-bold text-foreground">{stat.value}</p>
               <p className="text-xs text-muted-foreground">{stat.label}</p>
-              <p className="text-xs text-success font-medium mt-1">{stat.change}</p>
             </div>
           ))}
         </div>
@@ -138,11 +137,11 @@ const DashboardPage = () => {
         </div>
       </div>
 
-      {/* Top Products - using recent transactions for demo */}
+      {/* Recent Earnings */}
       <div className="px-4 py-4">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold text-foreground">Top Performers</h2>
-          <button className="text-sm text-primary font-medium flex items-center" onClick={() => navigate("/marketplace")}>
+          <h2 className="font-semibold text-foreground">Recent Earnings</h2>
+          <button className="text-sm text-primary font-medium flex items-center" onClick={() => navigate("/wallet")}>
             View all <ChevronRight className="h-4 w-4" />
           </button>
         </div>
@@ -224,12 +223,19 @@ const DashboardPage = () => {
           <div className="space-y-3">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Progress</span>
-              <span className="font-medium text-foreground">₦472,500 / ₦500,000</span>
+              <span className="font-medium text-foreground">
+                ₦{Math.min(stats?.monthlyEarnings ?? 0, 500000).toLocaleString()} / ₦500,000
+              </span>
             </div>
             <div className="w-full bg-muted rounded-full h-2">
-              <div className="gradient-primary h-2 rounded-full" style={{ width: "94.5%" }}></div>
+              <div
+                className="gradient-primary h-2 rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(((stats?.monthlyEarnings ?? 0) / 500000) * 100, 100)}%` }}
+              ></div>
             </div>
-            <p className="text-xs text-muted-foreground text-center">27,500 to go!</p>
+            <p className="text-xs text-muted-foreground text-center">
+              {Math.max(0, 500000 - (stats?.monthlyEarnings ?? 0)).toLocaleString()} to go this month!
+            </p>
           </div>
         </div>
       </div>

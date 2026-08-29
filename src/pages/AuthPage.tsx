@@ -4,14 +4,15 @@ import { Mail, Lock, ArrowRight, CheckCircle2, User as UserIcon } from "lucide-r
 import { Button } from "@/components/ui/button";
 import { CustomInput } from "@/components/ui/CustomInput";
 import { useAuth } from "@/contexts/AuthContext";
+import { tokenStore, apiBaseUrl, getErrorMessage, ReferralAPI } from "@/lib/api";
 import { toast } from "sonner";
 
 type AuthMode = "login" | "signup";
 
 const AuthPage = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const { login, signup, socialLogin, isAuthenticated, user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { login, signup, refresh, isAuthenticated, user } = useAuth();
 
   const [mode, setMode] = React.useState<AuthMode>("login");
   const [name, setName] = React.useState("");
@@ -22,12 +23,46 @@ const AuthPage = () => {
   const [showSuccess, setShowSuccess] = React.useState(false);
 
   const referralCode = searchParams.get("ref") || undefined;
+  const oauthToken = searchParams.get("token");
+
+  // OAuth callback: exchange the token in the URL for a session, then continue.
+  React.useEffect(() => {
+    if (!oauthToken) return;
+    tokenStore.set(oauthToken);
+    const redirect = searchParams.get("redirect");
+    const ref = searchParams.get("ref");
+    (async () => {
+      try {
+        await refresh();
+        // Referral codes from the OAuth entry link (social signups).
+        if (ref) {
+          try {
+            await ReferralAPI.apply(ref);
+            await refresh();
+          } catch {
+            /* optional */
+          }
+        }
+      } catch {
+        tokenStore.clear();
+      } finally {
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.delete("token");
+        nextParams.delete("redirect");
+        const safeRedirect =
+          redirect && redirect.startsWith("/") && !redirect.startsWith("//")
+            ? redirect
+            : "/auth";
+        navigate(safeRedirect, { replace: true });
+      }
+    })();
+  }, [oauthToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
   React.useEffect(() => {
-    if (isAuthenticated && user) {
+    if (isAuthenticated && user && !oauthToken) {
       navigate(user.onboardingComplete ? "/dashboard" : "/onboarding", { replace: true });
     }
-  }, [isAuthenticated, user, navigate]);
+  }, [isAuthenticated, user, navigate, oauthToken]);
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -52,25 +87,21 @@ const AuthPage = () => {
         toast.success(`Welcome back, ${u.name.split(" ")[0]}`);
         navigate(u.onboardingComplete ? "/dashboard" : "/onboarding");
       }
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || "Something went wrong");
+    } catch (err) {
+      toast.error(getErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSocial = async (provider: "google" | "apple") => {
-    // Demo: synthesize an email — in production wire real OAuth.
-    const fakeEmail = `${provider}_${Date.now()}@demo.com`;
-    setIsLoading(true);
-    try {
-      const u = await socialLogin(provider, fakeEmail, `${provider} user`);
-      navigate(u.onboardingComplete ? "/dashboard" : "/onboarding");
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || "Social auth failed");
-    } finally {
-      setIsLoading(false);
-    }
+  const handleSocial = (provider: "google" | "apple") => {
+    // Full-page redirect to the OAuth provider (Google/Apple) via the API.
+    // The callback returns here with ?token=... which we exchange for a session.
+    const current = new URLSearchParams(searchParams);
+    current.delete("token");
+    current.delete("redirect");
+    const target = current.get("ref") ? `/auth?${current.toString()}` : "/dashboard";
+    window.location.href = `${apiBaseUrl}/auth/oauth/${provider}?redirect=${encodeURIComponent(target)}`;
   };
 
   if (showSuccess) {

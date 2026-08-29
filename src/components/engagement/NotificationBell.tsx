@@ -16,8 +16,8 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ className })
     queryFn: () => NotificationAPI.list(false),
   });
 
-  const markReadMutation = useMutation({
-    mutationFn: NotificationAPI.markRead,
+  const markAllReadMutation = useMutation({
+    mutationFn: NotificationAPI.markAllRead,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
@@ -25,10 +25,16 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ className })
 
   const unreadCount = data?.unread ?? 0;
 
+  const handleClick = () => {
+    if (unreadCount > 0) markAllReadMutation.mutate();
+    navigate("/notifications");
+  };
+
   return (
     <button
+      aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
       className={`relative p-2 rounded-full bg-card shadow-sm hover:bg-muted transition-colors ${className ?? ""}`}
-      onClick={() => navigate("/notifications")}
+      onClick={handleClick}
     >
       {isLoading ? (
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />

@@ -1,116 +1,102 @@
-# Affiliate Hub — Backend (Express + MongoDB)
+# Affiliate Hub API — Cloudflare Workers + D1
 
-Production-ready scaffold using Express, Mongoose, JWT auth, and a clean MVC structure.
+Serverless API for Affiliate Hub, built with **Hono** on **Cloudflare Workers** and **D1** (SQLite).
+Deployable in seconds, zero servers to maintain, globally distributed.
 
 ## Stack
-- Node.js + Express 4
-- MongoDB via Mongoose 8
-- JWT auth (bcryptjs)
-- Helmet, CORS, rate limiting, request logging
+- [Hono](https://hono.dev) — Web-standard router/middleware (CORS, JWT, validation via Zod)
+- [Cloudflare Workers](https://workers.cloudflare.com/) — edge runtime
+- [D1](https://developers.cloudflare.com/d1/) — SQLite at the edge
+- PBKDF2-SHA256 password hashing via WebCrypto (no native deps)
+- HS256 JWTs (`hono/jwt`), rate-limited auth routes
 
-## Structure
-```
-backend/
-├── src/
-│   ├── server.js              # Boot + DB connect
-│   ├── app.js                 # Express app + middleware + routes
-│   ├── config/db.js           # Mongo connection
-│   ├── models/                # Mongoose models
-│   │   ├── User.js
-│   │   ├── Product.js
-│   │   ├── AffiliateLink.js
-│   │   ├── Transaction.js
-│   │   ├── Withdrawal.js
-│   │   └── BankDetails.js
-│   ├── controllers/           # Route handlers (business logic)
-│   ├── routes/                # Express routers
-│   ├── middleware/            # auth, validate, errorHandler, notFound, requireRole
-│   └── utils/                 # jwt, asyncHandler, ApiError, seed
-├── .env.example
-└── package.json
+## Quick start (local)
+
+```bash
+cd backend
+npm install
+cp .dev.vars.example .dev.vars        # fill in JWT_SECRET at minimum
+
+# 1) create the D1 database on Cloudflare (one time)
+npx wrangler d1 create affiliate-hub
+#    → copy the printed database_id into wrangler.toml
+
+# 2) create + seed local tables
+npm run db:local:init
+npm run db:local:seed
+
+# 3) run the API
+npm run dev                            # http://localhost:8787
 ```
 
-## Setup
+Demo accounts (seeded):
+- `demo@affiliatehub.com` / `password123` (affiliate)
+- `admin@affiliatehub.com` / `admin1234` (admin)
 
-1. Install MongoDB locally (or use MongoDB Atlas).
-2. Install deps:
-   ```bash
-   cd backend
-   npm install
-   ```
-3. Copy env file and edit:
-   ```bash
-   cp .env.example .env
-   ```
-4. Seed the database (optional but recommended):
-   ```bash
-   npm run seed
-   ```
-5. Run dev server:
-   ```bash
-   npm run dev
-   ```
+Smoke-test the running API:
 
-Server starts on `http://localhost:3001`. Health check at `/health`.
-
-Demo credentials after seeding:
-- `demo@affiliatehub.com` / `password123`
-- `admin@affiliatehub.com` / `admin1234`
-
-## API (v1)
-
-All routes are prefixed with `/api/v1`.
-
-### Auth
-| Method | Path | Auth | Body |
-|---|---|---|---|
-| POST | `/auth/signup` | — | `{ name, email, password, country?, whatsapp? }` |
-| POST | `/auth/login` | — | `{ email, password }` |
-| POST | `/auth/social-auth` | — | `{ provider, email, name? }` |
-| GET  | `/auth/me` | ✅ | — |
-| POST | `/auth/onboarding` | ✅ | `{ country, niche, whatsapp }` |
-
-### Products
-| GET | `/products` | `?category=&sort=&page=&limit=&q=` |
-| GET | `/products/search?q=` |
-| GET | `/products/categories` |
-| GET | `/products/:id` |
-
-### Wallet (auth required unless noted)
-| GET  | `/wallet/balance` |
-| GET  | `/wallet/transactions?status=&page=&limit=` |
-| GET  | `/wallet/withdraw-methods` *(public)* |
-| POST | `/wallet/withdraw` `{ amount, method, details }` |
-
-### Stats
-| GET | `/stats/dashboard` ✅ |
-| GET | `/stats/performance?period=7d|30d|90d` ✅ |
-| GET | `/stats/leaderboard?limit=` *(public)* |
-
-### Profile (auth required)
-| GET | `/profile` |
-| PUT | `/profile/update` |
-| PUT | `/profile/bank-details` |
-| PUT | `/profile/security` `{ currentPassword, newPassword }` |
-
-### Affiliate
-| GET  | `/affiliate/links` ✅ |
-| POST | `/affiliate/generate-link` ✅ `{ productId }` |
-| GET  | `/affiliate/assets?productId=` ✅ |
-| GET  | `/affiliate/r/:code` *(public — redirects, tracks click)* |
-| POST | `/affiliate/r/:code/convert` *(public — records conversion)* |
-
-## Frontend connection
-
-The React frontend reads `VITE_API_BASE_URL`. Set it in your frontend `.env`:
-```
-VITE_API_BASE_URL=http://localhost:3001/api/v1
+```bash
+node scripts/smoke.mjs                 # 59 assertions
 ```
 
-CORS is controlled by `CORS_ORIGIN` in `backend/.env` (comma-separated allowed origins).
+## Deploy to Cloudflare (production)
 
-## Production notes
-- Replace `JWT_SECRET` with a long random string.
-- Run behind HTTPS (e.g. nginx, Render, Railway, Fly.io).
-- Use MongoDB Atlas for managed DB.
-- Add monitoring (PM2, Sentry) and structured logging.
+```bash
+cd backend
+
+# One-time database setup
+npx wrangler d1 create affiliate-hub
+# paste database_id into wrangler.toml
+
+# Migrations (apply to remote D1)
+npm run db:init
+npm run db:seed                        # optional demo data
+
+# Secrets — never commit these
+npx wrangler secret put JWT_SECRET
+npx wrangler secret put CORS_ORIGIN            # e.g. https://your-app.vercel.app
+npx wrangler secret put PUBLIC_FRONTEND_URL    # your Vercel URL
+npx wrangler secret put PUBLIC_API_URL         # e.g. https://affiliate-hub-api.<account>.workers.dev
+npx wrangler secret put AFFILIATE_WEBHOOK_SECRET   # protects the conversion webhook
+# Optional OAuth
+npx wrangler secret put GOOGLE_CLIENT_ID
+npx wrangler secret put GOOGLE_CLIENT_SECRET
+npx wrangler secret put APPLE_CLIENT_ID
+npx wrangler secret put APPLE_CLIENT_SECRET
+
+# Deploy
+npm run deploy
+```
+
+Then set `VITE_API_BASE_URL` on Vercel to `https://<your-worker>.workers.dev/api/v1` and redeploy the frontend.
+(CI: `.github/workflows/backend-deploy.yml` deploys automatically on pushes to `main` that touch `backend/`.)
+
+## API overview
+
+All routes are prefixed with `/api/v1` (short-link redirects live at `/r/:code`).
+
+| Area | Endpoints |
+|---|---|
+| Auth | `POST /auth/signup`, `POST /auth/login`, `GET /auth/me`, `POST /auth/onboarding`, `GET /auth/oauth/{google\|apple}[/callback]` |
+| Products | `GET /products`, `GET /products/search?q=`, `GET /products/categories`, `GET /products/:id` |
+| Affiliate | `GET /affiliate/links`, `POST /affiliate/generate-link`, `GET /affiliate/assets?productId=`, `GET /affiliate/r/:code` (JSON), `GET /r/:code` (302), `POST /affiliate/r/:code/convert` (webhook) |
+| Wallet | `GET /wallet/balance`, `GET /wallet/transactions`, `GET /wallet/withdraw-methods`, `POST /wallet/withdraw` |
+| Stats | `GET /stats/dashboard`, `GET /stats/performance?period=`, `GET /stats/leaderboard` |
+| Profile | `GET /profile`, `PUT /profile/update`, `PUT /profile/bank-details`, `PUT /profile/security` |
+| Engagement | `GET /notifications`, `PUT /notifications/:id/read`, `PUT /notifications/read-all`, `DELETE /notifications/:id`, `GET /achievements`, `GET /achievements/streak` |
+| Referrals | `GET /referrals/me`, `POST /referrals/apply` |
+| Support | `POST /support/tickets` |
+| Admin | `GET/PUT/DELETE /admin/users`, `POST/PUT/DELETE /admin/products`, `GET/PUT /admin/withdrawals`, `GET /admin/metrics`, `GET/PATCH /admin/tickets` |
+
+### Conversion webhook (vendor integration)
+
+`POST /api/v1/affiliate/r/:code/convert` requires the `AFFILIATE_WEBHOOK_SECRET` header value in
+`x-affiliate-wh-secret` (or `x-webhook-secret`). The JSON body **must** include
+`{ "eventId": "<unique id>" }` — `eventId` is required so duplicate events (retries) are ignored and
+affiliates are never double-credited. The vendor should capture the `ref` query param (the affiliate
+code) from the redirected URL and use it as the `:code` in this endpoint.
+
+## Notes
+- Withdrawals debit the wallet only when completed; in-flight withdrawals lock the balance so users can't over-withdraw.
+- Product deletes are soft (deactivate); historical affiliate links keep resolving.
+- The wallet accrues by **completed** credit transactions; `pending` shows the unsettled amount.

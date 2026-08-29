@@ -1,7 +1,9 @@
 node_modules
-.env
+dist
+.dev.vars
+.wrangler
+.wrangler/
 *.log
 .DS_Store
 *.db
-
-/src/generated/prisma
+*.sqlite*

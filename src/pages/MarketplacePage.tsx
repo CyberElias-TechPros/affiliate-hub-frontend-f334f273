@@ -9,13 +9,12 @@ import { Button } from "@/components/ui/button";
 import { ProductAPI } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 
-const categories = [
+const fallbackCategories = [
   { id: "all", label: "All Products" },
   { id: "Digital", label: "Digital" },
   { id: "Tech", label: "Tech" },
   { id: "Beauty", label: "Beauty" },
   { id: "Health", label: "Health" },
-  { id: "Finance", label: "Finance" },
 ];
 
 const sortOptions = [
@@ -25,25 +24,73 @@ const sortOptions = [
   { id: "commission", label: "Commission: High to Low" },
 ];
 
+const SAVED_KEY = "ah_saved_products";
+
 const MarketplacePage = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [debouncedQuery, setDebouncedQuery] = React.useState("");
   const [activeCategory, setActiveCategory] = React.useState("all");
-  const [savedProducts, setSavedProducts] = React.useState<string[]>([]);
+  const [savedProducts, setSavedProducts] = React.useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(SAVED_KEY) || "[]");
+    } catch {
+      return [];
+    }
+  });
   const [sortBy, setSortBy] = React.useState("newest");
   const [isSortOpen, setIsSortOpen] = React.useState(false);
+  const [page, setPage] = React.useState(1);
+  const isSearching = !!debouncedQuery.trim();
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["products", activeCategory, sortBy, searchQuery],
+  // Load real categories from the API (fallback list while loading).
+  const { data: categoryData } = useQuery({
+    queryKey: ["product-categories"],
+    queryFn: ProductAPI.categories,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const categories: Array<{ id: string; label: string }> = React.useMemo(() => {
+    const fromApi = (categoryData ?? []).map((c) => ({ id: c, label: c }));
+    const list = fromApi.length > 0 ? fromApi : fallbackCategories.slice(1);
+    return [{ id: "all", label: "All Products" }, ...list];
+  }, [categoryData]);
+
+  // Debounce search so we don't hit the API on every keystroke.
+  React.useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  // Keep the selected category valid if the API list differs from the fallback.
+  React.useEffect(() => {
+    if (activeCategory !== "all" && categoryData && !categoryData.includes(activeCategory)) {
+      setActiveCategory("all");
+    }
+  }, [categoryData, activeCategory]);
+
+  const { data, isLoading, error, isFetching } = useQuery({
+    queryKey: ["products", activeCategory, sortBy, debouncedQuery, page],
     queryFn: () =>
       ProductAPI.list({
         category: activeCategory === "all" ? undefined : activeCategory,
         sort: sortBy,
-        q: searchQuery || undefined,
+        q: debouncedQuery || undefined,
+        page,
+        limit: 20,
       }),
   });
 
   const products = data?.items || [];
+  const hasMore = products.length < (data?.total ?? 0);
+
+  React.useEffect(() => {
+    localStorage.setItem(SAVED_KEY, JSON.stringify(savedProducts));
+  }, [savedProducts]);
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [debouncedQuery, activeCategory, sortBy]);
 
   const handleSaveProduct = (id: string) => {
     setSavedProducts((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
@@ -150,6 +197,19 @@ const MarketplacePage = () => {
             />
           </div>
         ))}
+
+        {hasMore && (
+          <div className="pt-2">
+            <Button
+              variant="outline"
+              className="w-full h-12 rounded-xl"
+              disabled={isFetching}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              {isFetching ? "Loading..." : `Load more (${(data?.total ?? 0) - products.length} remaining)`}
+            </Button>
+          </div>
+        )}
       </div>
 
       <BottomNav />

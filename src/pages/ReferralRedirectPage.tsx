@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import api from '@/lib/api';
+import { AffiliateAPI } from '@/lib/api';
 
 const ReferralRedirectPage = () => {
   const { code } = useParams<{ code: string }>();
@@ -14,9 +14,15 @@ const ReferralRedirectPage = () => {
 
     (async () => {
       try {
-        const { data } = await api.get(`/affiliate/r/${code}`);
+        const data = await AffiliateAPI.resolve(code);
         if (data?.url) {
-          window.location.href = data.url;
+          // Preserve the referral/query params already present on this URL.
+          const url = new URL(data.url, window.location.origin);
+          const params = new URLSearchParams(window.location.search);
+          params.forEach((value, key) => {
+            if (!url.searchParams.has(key)) url.searchParams.set(key, value);
+          });
+          window.location.replace(url.toString());
         } else {
           navigate('/marketplace', { replace: true });
         }

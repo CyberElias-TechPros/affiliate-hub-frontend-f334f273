@@ -16,7 +16,6 @@ interface AuthContextValue {
     whatsapp?: string;
     referralCode?: string;
   }) => Promise<User>;
-  socialLogin: (provider: 'google' | 'apple', email: string, name?: string) => Promise<User>;
   refresh: () => Promise<void>;
   logout: () => void;
   setUser: (u: User | null) => void;
@@ -64,13 +63,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return user;
   };
 
-  const socialLogin: AuthContextValue['socialLogin'] = async (provider, email, name) => {
-    const { token, user } = await AuthAPI.socialAuth(provider, email, name);
-    tokenStore.set(token);
-    setUser(user);
-    return user;
-  };
-
   const logout = () => {
     tokenStore.clear();
     setUser(null);
@@ -84,7 +76,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isAdmin: user?.role === 'admin',
     login,
     signup,
-    socialLogin,
     refresh,
     logout,
     setUser,

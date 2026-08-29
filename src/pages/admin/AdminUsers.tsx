@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Shield, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { AdminAPI } from "@/lib/api";
+import { AdminAPI, getErrorMessage } from "@/lib/api";
 import { toast } from "sonner";
 
 const AdminUsers = () => {
@@ -19,8 +19,8 @@ const AdminUsers = () => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       toast.success("User role updated");
     },
-    onError: (err: Error) => {
-      toast.error(err.message);
+    onError: (err) => {
+      toast.error(getErrorMessage(err));
     },
   });
 
@@ -30,8 +30,8 @@ const AdminUsers = () => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       toast.success("User deleted");
     },
-    onError: (err: Error) => {
-      toast.error(err.message);
+    onError: (err) => {
+      toast.error(getErrorMessage(err));
     },
   });
 

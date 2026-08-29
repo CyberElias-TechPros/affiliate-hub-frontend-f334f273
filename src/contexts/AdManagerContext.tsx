@@ -51,24 +51,36 @@ export const AdManagerProvider: React.FC<{ children: ReactNode }> = ({ children 
     fillRate: 0
   });
 
+  const refreshCount = React.useRef(0);
+
   const refreshAds = useCallback(() => {
-    if (window.adsbygoogle && Array.isArray(window.adsbygoogle)) {
-      try {
+    if (!window.adsbygoogle || !Array.isArray(window.adsbygoogle)) return;
+    try {
+      // Only request a fill for ad units AdSense hasn't filled yet — pushing
+      // repeatedly onto already-filled units produces console errors.
+      const unfilled = Array.from(
+        document.querySelectorAll<HTMLModElement>('ins.adsbygoogle')
+      ).filter((el) => !el.hasAttribute('data-adsbygoogle-status'));
+      if (unfilled.length > 0) {
         window.adsbygoogle.push({});
-        console.log('Ads refreshed at', new Date().toISOString());
-      } catch (error) {
-        console.error('Ad refresh error:', error);
+        refreshCount.current += 1;
       }
+    } catch (error) {
+      console.error('Ad refresh error:', error);
     }
   }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
+      if (refreshCount.current >= config.maxRefreshes) {
+        clearInterval(interval);
+        return;
+      }
       refreshAds();
     }, config.refreshInterval);
 
     return () => clearInterval(interval);
-  }, [config.refreshInterval, refreshAds]);
+  }, [config.refreshInterval, config.maxRefreshes, refreshAds]);
 
   const showInterstitial = useCallback((trigger: string) => {
     if (config.interstitialTriggers.includes(trigger)) {

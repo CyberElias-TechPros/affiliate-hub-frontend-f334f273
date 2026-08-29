@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { AdminAPI } from "@/lib/api";
+import { AdminAPI, getErrorMessage } from "@/lib/api";
 import type { Withdrawal } from "@/types";
 import { toast } from "sonner";
 
@@ -20,8 +20,8 @@ const AdminWithdrawals = () => {
       queryClient.invalidateQueries({ queryKey: ["admin-withdrawals"] });
       toast.success("Withdrawal updated");
     },
-    onError: (err: Error) => {
-      toast.error(err.message);
+    onError: (err) => {
+      toast.error(getErrorMessage(err));
     },
   });
 

@@ -20,6 +20,12 @@ const ProductCard = React.forwardRef<HTMLDivElement, ProductCardProps>(
     const [saved, setSaved] = React.useState(isSaved);
     const [imageLoaded, setImageLoaded] = React.useState(false);
 
+    // Keep the visual state in sync when the saved list changes elsewhere
+    // (e.g. un-saving on the product detail page and navigating back).
+    React.useEffect(() => {
+      setSaved(isSaved);
+    }, [isSaved]);
+
     const handleSave = (e: React.MouseEvent) => {
       e.stopPropagation();
       setSaved(!saved);

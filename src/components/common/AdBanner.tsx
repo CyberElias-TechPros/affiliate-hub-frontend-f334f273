@@ -10,8 +10,8 @@ interface AdBannerProps {
 
 declare global {
   interface Window {
-    adsbygoogle: any[];
-    gtag: (...args: any[]) => void;
+    adsbygoogle?: unknown[];
+    gtag?: (...args: unknown[]) => void;
   }
 }
 
@@ -22,21 +22,49 @@ export const AdBanner: React.FC<AdBannerProps> = ({
   adSlot = '7966964742'
 }) => {
   const adRef = useRef<HTMLDivElement>(null);
+  const pushedRef = useRef(false);
 
   useEffect(() => {
     const initializeAd = () => {
       try {
-        if (window.adsbygoogle && adRef.current && !adRef.current.hasAttribute('data-adsbygoogle-status')) {
-          console.log('Initializing AdSense ad for slot:', adSlot);
-          (window.adsbygoogle = window.adsbygoogle || []).push({});
+        if (!window.adsbygoogle || !adRef.current || pushedRef.current) return;
+        // AdSense's own script sets data-adsbygoogle-status on the <ins> after a
+        // successful fill; we track the wrappers we've already pushed to as well.
+        const ad = adRef.current;
+        if (ad.hasAttribute('data-adsbygoogle-status')) {
+          pushedRef.current = true;
+          return;
         }
+        window.adsbygoogle.push({});
+        pushedRef.current = true;
+        ad.setAttribute('data-adsbygoogle-status', 'unfilled');
+        // If the fill fails (e.g. no consent / no network), the script updates the
+        // <ins>; nothing more to do here.
       } catch (err) {
         console.error('AdSense error:', err);
       }
     };
 
-    const timer = setTimeout(initializeAd, 100);
-    return () => clearTimeout(timer);
+    let observer: IntersectionObserver | undefined;
+    if (typeof IntersectionObserver !== 'undefined') {
+      observer = new IntersectionObserver(
+        (entries) => {
+          if (entries.some((e) => e.isIntersecting)) {
+            initializeAd();
+            observer?.disconnect();
+          }
+        },
+        { rootMargin: '100px' }
+      );
+      if (adRef.current) observer.observe(adRef.current);
+    }
+    // Fallback: if the observer never fires (or isn't supported), still attempt.
+    const fallback = window.setTimeout(initializeAd, 2500);
+
+    return () => {
+      observer?.disconnect();
+      window.clearTimeout(fallback);
+    };
   }, [adSlot]);
 
   const getAdClasses = () => {
@@ -121,7 +149,7 @@ export const MobileAd: React.FC<{ className?: string }> = ({ className }) => (
 );
 
 export const StickyFooterAd: React.FC = () => (
-  <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-xl border-t border-border safe-bottom">
+  <div className="fixed bottom-16 left-0 right-0 z-40 bg-background/95 backdrop-blur-xl border-t border-border safe-bottom">
     <div className="flex justify-center py-2">
       <AdBanner style="banner" position="bottom" adSlot="7966964742" className="max-w-md" />
     </div>

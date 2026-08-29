@@ -20,8 +20,16 @@ import type {
   ReferralStats,
 } from '@/types';
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api/v1';
+/**
+ * API base URL resolution:
+ *  - In production (Vercel) set VITE_API_BASE_URL to the deployed Cloudflare
+ *    Workers API, e.g. https://affiliate-hub-api.<account>.workers.dev/api/v1
+ *  - In development the default /api/v1 is proxied by Vite to the local worker.
+ */
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/$/, '');
+
+/** Base URL for OAuth flows (e.g. `${apiBaseUrl}/auth/oauth/google`). */
+export const apiBaseUrl = API_BASE_URL;
 
 const TOKEN_KEY = 'affiliate_token';
 
@@ -29,6 +37,19 @@ export const tokenStore = {
   get: () => localStorage.getItem(TOKEN_KEY),
   set: (t: string) => localStorage.setItem(TOKEN_KEY, t),
   clear: () => localStorage.removeItem(TOKEN_KEY),
+};
+
+/** Extract a human-friendly message from any error (Axios or otherwise). */
+export const getErrorMessage = (err: unknown): string => {
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data as { error?: string; details?: unknown } | undefined;
+    if (data?.error) return data.error;
+    if (err.code === 'ECONNABORTED') return 'Request timed out. Please try again.';
+    if (!err.response) return 'Cannot reach the server. Check your connection and try again.';
+    return err.message;
+  }
+  if (err instanceof Error) return err.message;
+  return 'Something went wrong';
 };
 
 const api: AxiosInstance = axios.create({
@@ -46,18 +67,32 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config;
 });
 
+// Single-flight, safe 401 handling: clear the token once, then redirect.
+let redirectingToAuth = false;
 api.interceptors.response.use(
   (response: AxiosResponse) => response,
   (error: AxiosError) => {
     const status = error.response?.status;
+
+    // Retry idempotent requests once on network errors / server hiccups.
+    const config = error.config as (InternalAxiosRequestConfig & { _retried?: boolean }) | undefined;
+    const isRetryable =
+      !error.response &&
+      (!config?.method || ['get', 'head', 'options'].includes(config.method.toLowerCase()));
+    if (isRetryable && config && !config._retried) {
+      config._retried = true;
+      return api.request(config);
+    }
+
     if (status === 401 && typeof window !== 'undefined') {
       const path = window.location.pathname;
-      // Only redirect to /auth from authenticated pages, not from /auth itself.
       if (
         !path.startsWith('/auth') &&
         !path.startsWith('/onboarding') &&
-        path !== '/'
+        path !== '/' &&
+        !redirectingToAuth
       ) {
+        redirectingToAuth = true;
         tokenStore.clear();
         window.location.href = '/auth';
       }
@@ -80,10 +115,6 @@ export const AuthAPI = {
   }) => unwrap<{ token: string; user: User }>(api.post('/auth/signup', data)),
   login: (email: string, password: string) =>
     unwrap<{ token: string; user: User }>(api.post('/auth/login', { email, password })),
-  socialAuth: (provider: 'google' | 'apple', email: string, name?: string) =>
-    unwrap<{ token: string; user: User }>(
-      api.post('/auth/social-auth', { provider, email, name })
-    ),
   me: () => unwrap<{ user: User }>(api.get('/auth/me')),
   completeOnboarding: (data: {
     country?: string;
@@ -115,24 +146,32 @@ export const AffiliateAPI = {
     unwrap<{ images: string[]; swipeCopy: string }>(
       api.get('/affiliate/assets', { params: { productId } })
     ),
-  // Test helper
-  simulateConversion: (code: string) =>
-    unwrap<{ ok: boolean; earned: number }>(api.post(`/affiliate/r/${code}/convert`)),
+  resolve: (code: string) =>
+    unwrap<{ ok: boolean; url: string; clicks: number }>(api.get(`/affiliate/r/${code}`)),
 };
 
 // ---------- WALLET ----------
+export interface WithdrawMethod {
+  id: 'bank' | 'usdt' | 'paypal';
+  label: string;
+  minAmount: number;
+  fee: number;
+  time: string;
+}
+
 export const WalletAPI = {
   balance: () => unwrap<BalanceResponse>(api.get('/wallet/balance')),
   transactions: (params?: { page?: number; limit?: number; status?: string }) =>
     unwrap<{ items: Transaction[]; total: number; page: number; limit: number }>(
       api.get('/wallet/transactions', { params })
     ),
-  withdraw: (data: { amount: number; method: 'bank' | 'usdt' | 'paypal'; details: Record<string, any> }) =>
+  withdraw: (data: {
+    amount: number;
+    method: 'bank' | 'usdt' | 'paypal';
+    details: Record<string, unknown>;
+  }) =>
     unwrap<{ withdrawal: Withdrawal; transaction: Transaction }>(api.post('/wallet/withdraw', data)),
-  methods: () =>
-    unwrap<Array<{ id: string; label: string; minAmount: number; fee: number }>>(
-      api.get('/wallet/withdraw-methods')
-    ),
+  methods: () => unwrap<WithdrawMethod[]>(api.get('/wallet/withdraw-methods')),
 };
 
 // ---------- STATS ----------
@@ -178,14 +217,28 @@ export const AchievementAPI = {
 // ---------- REFERRALS ----------
 export const ReferralAPI = {
   me: () => unwrap<ReferralStats>(api.get('/referrals/me')),
+  apply: (code: string) =>
+    unwrap<{ ok: boolean; reason?: string }>(api.post('/referrals/apply', { code })),
+};
+
+// ---------- SUPPORT ----------
+export const SupportAPI = {
+  createTicket: (data: { subject: string; message: string }) =>
+    unwrap<{ ticket: { _id: string; subject: string; status: string; createdAt: string } }>(
+      api.post('/support/tickets', data)
+    ),
 };
 
 // ---------- ADMIN ----------
 export const AdminAPI = {
   metrics: () =>
-    unwrap<{ users: number; products: number; totalEarnings: number; pendingWithdrawals: number }>(
-      api.get('/admin/metrics')
-    ),
+    unwrap<{
+      users: number;
+      products: number;
+      totalEarnings: number;
+      pendingWithdrawals: number;
+      openTickets: number;
+    }>(api.get('/admin/metrics')),
   listUsers: (params?: { page?: number; limit?: number; q?: string }) =>
     unwrap<{ items: User[]; total: number; page: number }>(api.get('/admin/users', { params })),
   updateUserRole: (id: string, role: 'user' | 'admin') =>
@@ -201,6 +254,13 @@ export const AdminAPI = {
     unwrap<{ items: Withdrawal[] }>(api.get('/admin/withdrawals', { params: { status } })),
   updateWithdrawal: (id: string, status: Withdrawal['status']) =>
     unwrap<{ withdrawal: Withdrawal }>(api.put(`/admin/withdrawals/${id}`, { status })),
+
+  listTickets: () =>
+    unwrap<{ items: Array<{ _id: string; subject: string; message: string; status: string; createdAt: string; name: string; email: string }> }>(
+      api.get('/admin/tickets')
+    ),
+  updateTicket: (id: string, status: 'open' | 'in_progress' | 'resolved' | 'closed') =>
+    unwrap<{ ok: boolean }>(api.patch(`/admin/tickets/${id}`, { status })),
 };
 
 export default api;

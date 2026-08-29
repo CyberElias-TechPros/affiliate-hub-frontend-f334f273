@@ -4,6 +4,7 @@ import { ArrowLeft, Bell, Loader2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { NotificationAPI } from "@/lib/api";
+import { toast } from "sonner";
 
 const NotificationsPage = () => {
   const navigate = useNavigate();
@@ -16,6 +17,14 @@ const NotificationsPage = () => {
 
   const markAllReadMutation = useMutation({
     mutationFn: NotificationAPI.markAllRead,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+    onError: () => toast.error("Could not mark notifications as read"),
+  });
+
+  const markReadMutation = useMutation({
+    mutationFn: NotificationAPI.markRead,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
@@ -76,9 +85,9 @@ const NotificationsPage = () => {
                 }`}
                 onClick={() => {
                   if (!notification.read) {
-                    NotificationAPI.markRead(notification._id);
+                    markReadMutation.mutate(notification._id);
                   }
-                  if (notification.link) {
+                  if (notification.link && notification.link.startsWith("/")) {
                     navigate(notification.link);
                   }
                 }}

@@ -1,33 +1,55 @@
 import * as React from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Heart, Share2, Check, Copy } from "lucide-react";
+import { ArrowLeft, Heart, Share2, Check, Copy, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ProductAPI, AffiliateAPI } from "@/lib/api";
+import { ProductAPI, AffiliateAPI, getErrorMessage } from "@/lib/api";
 import { useQuery, useMutation } from "@tanstack/react-query";
 
 const ProductDetailPage = () => {
   const navigate = useNavigate();
   const { id } = useParams();
-  const [isSaved, setIsSaved] = React.useState(false);
+  const [isSaved, setIsSaved] = React.useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("ah_saved_products") || "[]").includes(id);
+    } catch {
+      return false;
+    }
+  });
   const [linkCopied, setLinkCopied] = React.useState(false);
 
-  const { data: product, isLoading, error } = useQuery({
+  const { data: product, isLoading, error, refetch } = useQuery({
     queryKey: ["product", id],
     queryFn: () => ProductAPI.detail(id!),
     enabled: !!id,
+    retry: false,
   });
 
   const generateMutation = useMutation({
     mutationFn: () => AffiliateAPI.generate(id!),
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
 
   const affiliateLink = generateMutation.data?.link?.url || "";
 
+  // Keep the generated link in sync with the product route (browser navigation
+  // between two product detail pages reuses this component instance).
   React.useEffect(() => {
-    if (id && !generateMutation.data) generateMutation.mutate();
+    if (!id) return;
+    generateMutation.reset();
+    generateMutation.mutate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  React.useEffect(() => {
+    try {
+      const saved: string[] = JSON.parse(localStorage.getItem("ah_saved_products") || "[]");
+      if (isSaved && !saved.includes(id!)) localStorage.setItem("ah_saved_products", JSON.stringify([...saved, id!]));
+      if (!isSaved && saved.includes(id!)) localStorage.setItem("ah_saved_products", JSON.stringify(saved.filter((s) => s !== id)));
+    } catch {
+      /* ignore */
+    }
+  }, [isSaved, id]);
 
   const handleCopyLink = () => {
     if (!affiliateLink) return;
@@ -63,6 +85,9 @@ const ProductDetailPage = () => {
         </Button>
         <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4 text-center">
           <p className="text-destructive font-medium">Product not found</p>
+          <Button onClick={() => refetch()} variant="outline" className="mt-4">
+            Try Again
+          </Button>
         </div>
       </div>
     );
@@ -142,8 +167,27 @@ const ProductDetailPage = () => {
             <label className="text-sm text-muted-foreground mb-2 block">Your unique link</label>
             <div className="flex gap-2">
               <div className="flex-1 px-3 py-2.5 bg-muted rounded-lg text-sm text-foreground truncate">
-                {affiliateLink || "Generating..."}
+                {affiliateLink || (
+                  <span className="flex items-center gap-2 text-muted-foreground">
+                    {generateMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    {generateMutation.isPending
+                      ? "Generating your link..."
+                      : generateMutation.isError
+                      ? "Could not generate link"
+                      : "Link ready"}
+                  </span>
+                )}
               </div>
+              {generateMutation.isError && (
+                <Button
+                  onClick={() => generateMutation.mutate()}
+                  disabled={generateMutation.isPending}
+                  variant="outline"
+                  className="px-4 rounded-lg font-medium"
+                >
+                  {generateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Retry"}
+                </Button>
+              )}
               <Button
                 onClick={handleCopyLink}
                 disabled={!affiliateLink}

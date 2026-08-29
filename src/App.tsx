@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AdManagerProvider, useAdManager } from "@/contexts/AdManagerContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { InterstitialAd } from "@/components/common/AdBanner";
 import LandingPage from "./pages/LandingPage";
 import AboutPage from "./pages/AboutPage";
@@ -35,8 +36,17 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminProducts from "./pages/admin/AdminProducts";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminWithdrawals from "./pages/admin/AdminWithdrawals";
+import AdminTickets from "./pages/admin/AdminTickets";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 30 * 1000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const AppContent = () => {
   const { interstitialOpen, closeInterstitial } = useAdManager();
@@ -166,6 +176,7 @@ const AppContent = () => {
             <Route path="products" element={<AdminProducts />} />
             <Route path="users" element={<AdminUsers />} />
             <Route path="withdrawals" element={<AdminWithdrawals />} />
+            <Route path="tickets" element={<AdminTickets />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />
@@ -179,13 +190,15 @@ const AppContent = () => {
 };
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AdManagerProvider>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
-    </AdManagerProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <AdManagerProvider>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </AdManagerProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

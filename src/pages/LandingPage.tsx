@@ -18,12 +18,12 @@ const features = [
   {
     icon: TrendingUp,
     title: "High Commissions",
-    description: "Earn up to 50% commission on every sale. Our rates are among the highest in Nigeria.",
+    description: "Earn up to 60% commission on every sale. Our rates are among the highest in Nigeria.",
   },
   {
     icon: Wallet,
     title: "Fast Payouts",
-    description: "Get paid within 24 hours. Withdraw to your bank, PayPal, or USDT wallet.",
+    description: "Withdraw to your bank, PayPal, or USDT wallet — payouts processed within 24-48 hours.",
   },
   {
     icon: Zap,
@@ -145,8 +145,8 @@ const LandingPage = () => {
               <span className="text-primary">Income</span>
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground mb-8 animate-fade-up" style={{ animationDelay: "100ms" }}>
-              Earn up to 50% commission promoting products you believe in. 
-              Join 15,000+ affiliates making money with Affiliate Hub.
+              Earn up to 60% commission promoting products you believe in. 
+              Join affiliates making money with Affiliate Hub.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-up" style={{ animationDelay: "200ms" }}>
               <Link to="/auth">

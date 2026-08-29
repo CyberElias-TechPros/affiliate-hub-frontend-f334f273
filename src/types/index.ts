@@ -68,7 +68,7 @@ export interface Withdrawal {
   user: string | { _id: string; name: string; email: string };
   amount: number;
   method: 'bank' | 'usdt' | 'paypal';
-  details: Record<string, any>;
+  details: Record<string, unknown>;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   createdAt: string;
 }
@@ -77,6 +77,8 @@ export interface BalanceResponse {
   ngnBalance: number;
   usdBalance: number;
   pending: number;
+  /** Funds locked by in-flight (pending) withdrawals. */
+  locked?: number;
   currency: string;
   fxRate: number;
 }
@@ -86,6 +88,8 @@ export interface DashboardStats {
   totalClicks: number;
   totalConversions: number;
   totalEarnings: number;
+  /** Completed credit earnings since the first of this month. */
+  monthlyEarnings?: number;
   conversionRate: number;
   recentTransactions: Transaction[];
 }

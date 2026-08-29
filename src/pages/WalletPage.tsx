@@ -1,33 +1,63 @@
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowUpRight, ArrowDownLeft, Filter, ChevronRight, Loader2 } from "lucide-react";
+import { ArrowUpRight, ArrowDownLeft, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import { BalanceCard } from "@/components/ui/BalanceCard";
-import { StatusTag } from "@/components/ui/StatusTag";
+import { StatusTag, type StatusType } from "@/components/ui/StatusTag";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { ContentAd, StickyFooterAd } from "@/components/common/AdBanner";
 import { WalletAPI } from "@/lib/api";
+import { cn } from "@/lib/utils";
+
+const PAGE_SIZE = 20;
+
+const statusFilters: Array<{ id: "all" | StatusType; label: string }> = [
+  { id: "all", label: "All statuses" },
+  { id: "pending", label: "Pending" },
+  { id: "completed", label: "Completed" },
+  { id: "failed", label: "Failed" },
+  { id: "cancelled", label: "Cancelled" },
+];
 
 const WalletPage = () => {
   const navigate = useNavigate();
   const [activeCard, setActiveCard] = React.useState(0);
+  const [statusFilter, setStatusFilter] = React.useState<"all" | StatusType>("all");
+  const [page, setPage] = React.useState(1);
 
   const { data: balanceData, isLoading: balanceLoading } = useQuery({
     queryKey: ["balance"],
     queryFn: WalletAPI.balance,
   });
 
-  const { data: txData, isLoading: txLoading } = useQuery({
-    queryKey: ["transactions"],
-    queryFn: () => WalletAPI.transactions({ limit: 20 }),
+  const { data: txData, isLoading: txLoading, isFetching } = useQuery({
+    queryKey: ["transactions", statusFilter, page],
+    queryFn: () =>
+      WalletAPI.transactions({
+        page,
+        limit: PAGE_SIZE,
+        status: statusFilter === "all" ? undefined : statusFilter,
+      }),
   });
 
   const transactions = txData?.items ?? [];
-  const isLoading = balanceLoading || txLoading;
+  const total = txData?.total ?? 0;
+  const hasMore = page * PAGE_SIZE < total;
+  const isLoading = balanceLoading || (txLoading && txData === undefined);
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [statusFilter]);
 
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div className="min-h-screen bg-background pb-44">
       {/* Header */}
       <div className="px-4 pt-6 pb-2 gradient-hero">
         <h1 className="text-2xl font-bold font-display text-foreground mb-6">Wallet</h1>
@@ -39,11 +69,10 @@ const WalletPage = () => {
               {balanceLoading ? (
                 <div className="h-36 rounded-2xl bg-card animate-pulse" />
               ) : (
-                <BalanceCard 
-                  currency="NGN" 
-                  balance={balanceData?.ngnBalance ?? 0} 
-                  trend={0} 
-                  isActive={activeCard === 0} 
+                <BalanceCard
+                  currency="NGN"
+                  balance={balanceData?.ngnBalance ?? 0}
+                  isActive={activeCard === 0}
                 />
               )}
             </div>
@@ -51,11 +80,10 @@ const WalletPage = () => {
               {balanceLoading ? (
                 <div className="h-36 rounded-2xl bg-card animate-pulse" />
               ) : (
-                <BalanceCard 
-                  currency="USD" 
-                  balance={((balanceData?.usdBalance) ?? 0).toString()} 
-                  trend={0} 
-                  isActive={activeCard === 1} 
+                <BalanceCard
+                  currency="USD"
+                  balance={(balanceData?.usdBalance ?? 0).toFixed(2)}
+                  isActive={activeCard === 1}
                 />
               )}
             </div>
@@ -82,10 +110,25 @@ const WalletPage = () => {
       <div className="px-4 py-4">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold text-foreground">Transactions</h2>
-          <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-            <Filter className="h-4 w-4" />
-            Filter
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+                {statusFilters.find((f) => f.id === statusFilter)?.label ?? "Filter"}
+                <ChevronDown className={cn("h-4 w-4", statusFilter !== "all" && "text-primary")} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              {statusFilters.map((f) => (
+                <DropdownMenuItem
+                  key={f.id}
+                  onSelect={() => setStatusFilter(f.id)}
+                  className={cn(statusFilter === f.id && "text-primary font-medium")}
+                >
+                  {f.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         <div className="space-y-3">
@@ -132,9 +175,25 @@ const WalletPage = () => {
           )}
         </div>
 
-        <button className="w-full mt-4 py-3 text-primary font-medium flex items-center justify-center">
-          View all transactions <ChevronRight className="h-4 w-4 ml-1" />
-        </button>
+        {hasMore && (
+          <Button
+            variant="outline"
+            className="w-full mt-4 h-11"
+            disabled={isFetching}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            {isFetching ? "Loading..." : `Load more (${total - transactions.length} remaining)`}
+          </Button>
+        )}
+
+        {!hasMore && transactions.length > 0 && total > PAGE_SIZE && (
+          <button
+            className="w-full mt-4 py-3 text-primary font-medium flex items-center justify-center"
+            onClick={() => setPage(1)}
+          >
+            Back to latest <ChevronRight className="h-4 w-4 ml-1" />
+          </button>
+        )}
       </div>
 
       {/* Ad Section */}

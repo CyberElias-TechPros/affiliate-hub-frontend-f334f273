@@ -1,35 +1,27 @@
 {
-  "name": "affiliate-hub-backend",
+  "name": "affiliate-hub-api",
   "version": "1.0.0",
-  "description": "Express + MongoDB backend for Affiliate Hub",
-  "main": "src/server.js",
+  "private": true,
+  "description": "Affiliate Hub API (Cloudflare Workers + D1)",
+  "type": "module",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
-    "seed": "node src/utils/seed.js",
-    "smoke": "node src/utils/smoke.js"
+    "dev": "wrangler dev --local",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "db:init": "wrangler d1 execute affiliate-hub --file=migrations/0001_init.sql",
+    "db:seed": "wrangler d1 execute affiliate-hub --file=migrations/0002_seed.sql",
+    "db:local:init": "wrangler d1 execute affiliate-hub --local --file=migrations/0001_init.sql",
+    "db:local:seed": "wrangler d1 execute affiliate-hub --local --file=migrations/0002_seed.sql",
+    "db:local:reset": "wrangler d1 execute affiliate-hub --local --command=\"DELETE FROM users; DELETE FROM products; DELETE FROM affiliate_links; DELETE FROM transactions; DELETE FROM withdrawals; DELETE FROM notifications; DELETE FROM achievements; DELETE FROM streaks; DELETE FROM referrals; DELETE FROM bank_details; DELETE FROM affiliate_events; DELETE FROM support_tickets;\""
   },
   "dependencies": {
-    "@prisma/client": "^7.7.0",
-    "@types/pg": "^8.20.0",
-    "bcryptjs": "^2.4.3",
-    "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "express": "^4.18.2",
-    "express-rate-limit": "^7.1.5",
-    "express-validator": "^7.0.1",
-    "helmet": "^7.1.0",
-    "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.0.3",
-    "morgan": "^1.10.0",
-    "mysql2": "^3.22.1",
-    "nanoid": "^3.3.7",
-    "pg": "^8.20.0",
-    "sequelize": "^6.37.8"
+    "@hono/zod-validator": "^0.7.2",
+    "hono": "^4.7.7",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "mongodb-memory-server": "^9.5.0",
-    "nodemon": "^3.0.2",
-    "supertest": "^6.3.4"
+    "@cloudflare/workers-types": "^5.20260828.0",
+    "typescript": "^5.8.3",
+    "wrangler": "^4.24.3"
   }
 }

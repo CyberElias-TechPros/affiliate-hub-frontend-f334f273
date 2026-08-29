@@ -1,0 +1,29 @@
+# ==== Affiliate Hub API — Cloudflare Worker secrets (copy to .dev.vars for local dev) ====
+# Set these in production with: npx wrangler secret put <NAME>
+
+JWT_SECRET=replace-with-a-long-random-string-64-chars-min
+JWT_EXPIRES_IN=7d
+
+# Comma-separated list of allowed origins (Vercel preview + production domains)
+CORS_ORIGIN=http://localhost:5173,http://localhost:8080
+
+# Public frontend URL — used to build shareable affiliate + referral links
+PUBLIC_FRONTEND_URL=http://localhost:5173
+
+# Public API URL — used for OAuth redirect URIs
+PUBLIC_API_URL=http://localhost:8787
+
+# Secret required by POST /api/v1/affiliate/r/:code/convert (vendor webhook)
+AFFILIATE_WEBHOOK_SECRET=change-me
+
+# Google OAuth (optional)
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# Apple Sign-in (optional)
+APPLE_CLIENT_ID=
+# Apple service JWT (generate: https://developer.apple.com/documentation/sign_in_with_apple/generate_and_validate_tokens)
+APPLE_CLIENT_SECRET=
+
+# FX rate for the USD balance card
+FX_NGN_PER_USD=1500

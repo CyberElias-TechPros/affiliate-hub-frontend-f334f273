@@ -1,7 +1,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-type StatusType = "pending" | "completed" | "failed" | "processing";
+export type StatusType = "pending" | "completed" | "failed" | "processing" | "cancelled";
 
 interface StatusTagProps {
   status: StatusType;
@@ -24,6 +24,10 @@ const statusConfig: Record<StatusType, { label: string; styles: string }> = {
   failed: {
     label: "Failed",
     styles: "bg-destructive/10 text-destructive border-destructive/20",
+  },
+  cancelled: {
+    label: "Cancelled",
+    styles: "bg-muted text-muted-foreground border-muted",
   },
 };
 

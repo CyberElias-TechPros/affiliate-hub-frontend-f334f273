@@ -1,17 +1,18 @@
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, ChevronDown, MessageCircle, Upload, Send } from "lucide-react";
+import { ArrowLeft, ChevronDown, MessageCircle, Send, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SupportAPI, getErrorMessage } from "@/lib/api";
 import { toast } from "sonner";
 
 const faqs = [
   {
     question: "How do I get paid?",
-    answer: "You can withdraw your earnings to your Nigerian bank account, USDT wallet, or PayPal. Bank transfers are free and processed within 1-2 hours during business hours.",
+    answer: "You can withdraw your earnings to your Nigerian bank account, USDT wallet, or PayPal. Bank transfers are processed within 24-48 hours during business days; USDT payouts within 1-6 hours.",
   },
   {
     question: "What is the minimum withdrawal?",
-    answer: "The minimum withdrawal amount is ₦5,000 for bank transfers and $10 for PayPal/USDT withdrawals.",
+    answer: "The minimum withdrawal is ₦1,000 for bank transfers, and ₦5,000 for USDT or PayPal withdrawals.",
   },
   {
     question: "How do commissions work?",
@@ -30,14 +31,27 @@ const faqs = [
 const HelpPage = () => {
   const navigate = useNavigate();
   const [openFaq, setOpenFaq] = React.useState<number | null>(null);
+  const [problemSubject, setProblemSubject] = React.useState("");
   const [problemText, setProblemText] = React.useState("");
   const [showReportForm, setShowReportForm] = React.useState(false);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-  const handleSubmitProblem = () => {
-    if (problemText.trim()) {
+  const handleSubmitProblem = async () => {
+    if (!problemText.trim() || !problemSubject.trim()) return;
+    setIsSubmitting(true);
+    try {
+      await SupportAPI.createTicket({
+        subject: problemSubject.trim(),
+        message: problemText.trim(),
+      });
       toast.success("Report submitted! We'll get back to you soon.");
+      setProblemSubject("");
       setProblemText("");
       setShowReportForm(false);
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -122,26 +136,30 @@ const HelpPage = () => {
           
           {showReportForm && (
             <div className="bg-card rounded-xl p-4 shadow-card space-y-4 animate-fade-in">
+              <input
+                value={problemSubject}
+                onChange={(e) => setProblemSubject(e.target.value)}
+                placeholder="Subject (e.g. Withdrawal not received)"
+                className="w-full h-11 px-3 bg-muted rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
               <textarea
                 value={problemText}
                 onChange={(e) => setProblemText(e.target.value)}
                 placeholder="Describe your issue in detail..."
                 className="w-full h-32 p-3 bg-muted rounded-lg text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
-              <div className="flex gap-3">
-                <Button variant="outline" className="flex-1">
-                  <Upload className="h-4 w-4 mr-2" />
-                  Attach Image
-                </Button>
-                <Button
-                  onClick={handleSubmitProblem}
-                  disabled={!problemText.trim()}
-                  className="flex-1 gradient-primary text-primary-foreground"
-                >
+              <Button
+                onClick={handleSubmitProblem}
+                disabled={!problemText.trim() || !problemSubject.trim() || isSubmitting}
+                className="w-full gradient-primary text-primary-foreground"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
                   <Send className="h-4 w-4 mr-2" />
-                  Submit
-                </Button>
-              </div>
+                )}
+                Submit
+              </Button>
             </div>
           )}
         </div>

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Loader2, Pencil, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { AdminAPI, ProductAPI } from "@/lib/api";
+import { AdminAPI, ProductAPI, getErrorMessage } from "@/lib/api";
 import type { Product } from "@/types";
 import { toast } from "sonner";
 
@@ -23,8 +23,8 @@ const AdminProducts = () => {
       toast.success("Product created");
       setIsModalOpen(false);
     },
-    onError: (err: Error) => {
-      toast.error(err.message);
+    onError: (err) => {
+      toast.error(getErrorMessage(err));
     },
   });
 
@@ -37,8 +37,8 @@ const AdminProducts = () => {
       setEditingProduct(null);
       setIsModalOpen(false);
     },
-    onError: (err: Error) => {
-      toast.error(err.message);
+    onError: (err) => {
+      toast.error(getErrorMessage(err));
     },
   });
 
@@ -48,8 +48,8 @@ const AdminProducts = () => {
       queryClient.invalidateQueries({ queryKey: ["admin-products"] });
       toast.success("Product deleted");
     },
-    onError: (err: Error) => {
-      toast.error(err.message);
+    onError: (err) => {
+      toast.error(getErrorMessage(err));
     },
   });
 
