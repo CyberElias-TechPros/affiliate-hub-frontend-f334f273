@@ -69,7 +69,7 @@ npm run deploy
 ```
 
 Then set `VITE_API_BASE_URL` on Vercel to `https://<your-worker>.workers.dev/api/v1` and redeploy the frontend.
-(CI: `.github/workflows/backend-deploy.yml` deploys automatically on pushes to `main` that touch `backend/`.)
+(CI: a ready-made `.github/workflows/backend-deploy.yml` exists in the repository worktree and deploys on pushes to `main` that touch `backend/`. Pushing it requires a GitHub App with the `workflows` permission — the current repo App does not have it, so commit & push that file once the permission is granted.)
 
 ## API overview
 
